@@ -776,7 +776,7 @@ func (tds *TrieDbState) UnwindTo(blockNr uint64) error {
 	b := tds.currentBuffer
 
 	if err := tds.db.RewindData(tds.blockNr, blockNr, func(bucket, key, value []byte) error {
-		//fmt.Printf("bucket: %x, key: %x, value: %x\n", bucket, key, value)
+		//fmt.Printf("UnwindTo bucket: %x, key: %x, value: %x\n", bucket, key, value)
 		if bytes.Equal(bucket, dbutils.AccountsHistoryBucket) {
 			var addrHash common.Hash
 			copy(addrHash[:], key)
@@ -784,6 +784,11 @@ func (tds *TrieDbState) UnwindTo(blockNr uint64) error {
 				var acc accounts.Account
 				if err := acc.DecodeForStorage(value); err != nil {
 					return err
+				}
+				// Fetch the code hash
+				if acc.Incarnation > 0 && debug.IsThinHistory() {
+					codeHash, _ := tds.db.Get(dbutils.ContractCodeBucket, dbutils.GenerateStoragePrefix(addrHash, acc.Incarnation))
+					copy(acc.CodeHash[:], codeHash)
 				}
 				b.accountUpdates[addrHash] = &acc
 				if err := tds.db.Put(dbutils.AccountsBucket, addrHash[:], value); err != nil {
