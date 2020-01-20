@@ -268,7 +268,7 @@ func (i *limitIterator) GetNext() ([]byte, []byte, bool) {
 	if bytes.Equal(i.currentBucket, dbutils.AccountChangeSetBucket) {
 		return i.k.AccountChangeSet[i.currentNum], dbutils.AccountChangeSetBucket, true
 	}
-	if bytes.Equal(i.currentBucket, dbutils.AccountChangeSetBucket) {
+	if bytes.Equal(i.currentBucket, dbutils.StorageChangeSetBucket) {
 		return i.k.StorageChangeSet[i.currentNum], dbutils.StorageChangeSetBucket, true
 	}
 	return nil, nil, false
@@ -299,7 +299,7 @@ func (i *limitIterator) updateBucket() {
 		i.currentNum = 0
 	}
 
-	if bytes.Equal(i.currentBucket, dbutils.AccountChangeSetBucket) && len(i.k.AccountHistoryKeys) == i.currentNum {
+	if bytes.Equal(i.currentBucket, dbutils.AccountChangeSetBucket) && len(i.k.AccountChangeSet) == i.currentNum {
 		i.currentBucket = dbutils.StorageChangeSetBucket
 		i.currentNum = 0
 	}
