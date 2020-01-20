@@ -214,6 +214,7 @@ func (m *mutation) PutS(hBucket, key, value []byte, timestamp uint64, noHistory 
 	if noHistory {
 		return nil
 	}
+
 	if !debug.IsThinHistory() {
 		composite, _ := dbutils.CompositeKeySuffix(key, timestamp)
 		m.puts.Set(hBucket, composite, value)
@@ -283,104 +284,106 @@ func (m *mutation) Delete(bucket, key []byte) error {
 
 // Deletes all keys with specified suffix(blockNum) from all the buckets
 func (m *mutation) DeleteTimestamp(timestamp uint64) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	changeSetKey := dbutils.EncodeTimestamp(timestamp)
 	changedAccounts, err := m.Get(dbutils.AccountChangeSetBucket, changeSetKey)
-	if err != nil {
+	if err != nil && err != ErrKeyNotFound {
 		return err
 	}
 
 	changedStorage, err := m.Get(dbutils.StorageChangeSetBucket, changeSetKey)
-	if err != nil {
+	if err != nil && err != ErrKeyNotFound {
 		return err
 	}
 
-	if debug.IsThinHistory() {
-		innerErr := dbutils.Walk(changedAccounts, func(kk, _ []byte) error {
-			indexBytes, getErr := m.getNoLock(dbutils.AccountsHistoryBucket, kk)
-			if getErr != nil {
-				return nil
-			}
-			var (
-				v         []byte
-				isEmpty   bool
-				removeErr error
-			)
-
-			v, isEmpty, removeErr = RemoveFromIndex(indexBytes, timestamp)
-			if removeErr != nil {
-				return removeErr
-			}
-			if isEmpty {
-				m.puts.DeleteStr(string(dbutils.AccountsHistoryBucket), kk)
-			} else {
-				m.puts.SetStr(string(dbutils.AccountsHistoryBucket), kk, v)
-			}
-			return nil
-		})
-		if innerErr != nil {
-			return innerErr
-		}
-		m.puts.DeleteStr(string(dbutils.AccountChangeSetBucket), changeSetKey)
-
-		innerErr = dbutils.Walk(changedStorage, func(kk, _ []byte) error {
-			indexBytes, getErr := m.getNoLock(dbutils.StorageHistoryBucket, kk)
-			if getErr != nil {
-				return nil
-			}
-			var (
-				v         []byte
-				isEmpty   bool
-				removeErr error
-			)
-
-			v, isEmpty, removeErr = RemoveFromStorageIndex(indexBytes, timestamp)
-			if removeErr != nil {
-				return removeErr
-			}
-			if isEmpty {
-				m.puts.DeleteStr(string(dbutils.StorageHistoryBucket), kk)
-			} else {
-				m.puts.SetStr(string(dbutils.StorageHistoryBucket), kk, v)
-			}
-			return nil
-		})
-		if innerErr != nil {
-			return innerErr
-		}
-		m.puts.DeleteStr(string(dbutils.StorageChangeSetBucket), changeSetKey)
-	} else {
-		innerErr := dbutils.Walk(changedAccounts, func(kk, _ []byte) error {
-			composite, _ := dbutils.CompositeKeySuffix(kk, timestamp)
-			m.puts.DeleteStr(string(dbutils.AccountsHistoryBucket), composite)
-			return nil
-		})
-
-		if innerErr != nil {
-			return innerErr
-		}
-		m.puts.DeleteStr(string(dbutils.AccountChangeSetBucket), changeSetKey)
-
-		innerErr = dbutils.Walk(changedStorage, func(kk, _ []byte) error {
-			composite, _ := dbutils.CompositeKeySuffix(kk, timestamp)
-			m.puts.DeleteStr(string(dbutils.StorageHistoryBucket), composite)
-			return nil
-		})
-
-		if innerErr != nil {
-			return innerErr
-		}
-		m.puts.DeleteStr(string(dbutils.StorageChangeSetBucket), changeSetKey)
-	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if debug.IsThinHistory() {
+		if len(changedAccounts) > 0 {
+			innerErr := dbutils.Walk(changedAccounts, func(kk, _ []byte) error {
+				indexBytes, getErr := m.getNoLock(dbutils.AccountsHistoryBucket, kk)
+				if getErr != nil {
+					return nil
+				}
+				var (
+					v         []byte
+					isEmpty   bool
+					removeErr error
+				)
+
+				v, isEmpty, removeErr = RemoveFromIndex(indexBytes, timestamp)
+				if removeErr != nil {
+					return removeErr
+				}
+				if isEmpty {
+					m.puts.DeleteStr(string(dbutils.AccountsHistoryBucket), kk)
+				} else {
+					m.puts.SetStr(string(dbutils.AccountsHistoryBucket), kk, v)
+				}
+				return nil
+			})
+			if innerErr != nil {
+				return innerErr
+			}
+			m.puts.DeleteStr(string(dbutils.AccountChangeSetBucket), changeSetKey)
+		}
+
+		if len(changedStorage) > 0 {
+			innerErr := dbutils.Walk(changedStorage, func(kk, _ []byte) error {
+				indexBytes, getErr := m.getNoLock(dbutils.StorageHistoryBucket, kk)
+				if getErr != nil {
+					return nil
+				}
+				var (
+					v         []byte
+					isEmpty   bool
+					removeErr error
+				)
+
+				v, isEmpty, removeErr = RemoveFromStorageIndex(indexBytes, timestamp)
+				if removeErr != nil {
+					return removeErr
+				}
+				if isEmpty {
+					m.puts.DeleteStr(string(dbutils.StorageHistoryBucket), kk)
+				} else {
+					m.puts.SetStr(string(dbutils.StorageHistoryBucket), kk, v)
+				}
+				return nil
+			})
+			if innerErr != nil {
+				return innerErr
+			}
+			m.puts.DeleteStr(string(dbutils.StorageChangeSetBucket), changeSetKey)
+		}
 
 	} else {
+		if len(changedAccounts) > 0 {
+			innerErr := dbutils.Walk(changedAccounts, func(kk, _ []byte) error {
+				composite, _ := dbutils.CompositeKeySuffix(kk, timestamp)
+				m.puts.DeleteStr(string(dbutils.AccountsHistoryBucket), composite)
+				return nil
+			})
 
+			if innerErr != nil {
+				return innerErr
+			}
+			m.puts.DeleteStr(string(dbutils.AccountChangeSetBucket), changeSetKey)
+		}
+		if len(changedStorage) > 0 {
+			innerErr := dbutils.Walk(changedStorage, func(kk, _ []byte) error {
+				composite, _ := dbutils.CompositeKeySuffix(kk, timestamp)
+				m.puts.DeleteStr(string(dbutils.StorageHistoryBucket), composite)
+				return nil
+			})
+
+			if innerErr != nil {
+				return innerErr
+			}
+			m.puts.DeleteStr(string(dbutils.StorageChangeSetBucket), changeSetKey)
+		}
 	}
-	return err
+	return nil
 }
 
 func (m *mutation) Commit() (uint64, error) {
