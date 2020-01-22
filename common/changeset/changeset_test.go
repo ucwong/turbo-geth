@@ -2,7 +2,6 @@ package changeset
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"github.com/ledgerwatch/turbo-geth/common/dbutils"
 	"math/rand"
@@ -57,7 +56,7 @@ func TestEncodingStorageWithoutNotDefaultIncarnation(t *testing.T) {
 		addrHash, _ := common.HashData([]byte("addrHash" + strconv.Itoa(i)))
 		key, _ := common.HashData([]byte("key" + strconv.Itoa(i)))
 		val, _ := common.HashData([]byte("val" + strconv.Itoa(i)))
-		err := ch.Add(dbutils.GenerateCompositeStorageKey(addrHash, defaultIncarnation, key), val.Bytes())
+		err = ch.Add(dbutils.GenerateCompositeStorageKey(addrHash, defaultIncarnation, key), val.Bytes())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +97,7 @@ func TestEncodingStorageWithtRandomIncarnation(t *testing.T) {
 		addrHash, _ := common.HashData([]byte("addrHash" + strconv.Itoa(i)))
 		key, _ := common.HashData([]byte("key" + strconv.Itoa(i)))
 		val, _ := common.HashData([]byte("val" + strconv.Itoa(i)))
-		err := ch.Add(dbutils.GenerateCompositeStorageKey(addrHash, rand.Uint64(), key), val.Bytes())
+		err = ch.Add(dbutils.GenerateCompositeStorageKey(addrHash, rand.Uint64(), key), val.Bytes())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -135,42 +134,4 @@ func TestFindLast(t *testing.T) {
 	if !bytes.Equal(val, common.FromHex("f7f6db1eb17c6d582078e0ffdd0c")) {
 		t.Error("Invalid value")
 	}
-}
-
-//BenchmarkFindLast1-4   	 1000000	      1142 ns/op	     232 B/op	       4 allocs/op
-func BenchmarkFindLast1(b *testing.B) {
-	encoded := createTestChangeSet()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		val, err := FindLast(encoded, common.FromHex("56fb07ee"))
-		assert.NoError(b, err)
-		if !bytes.Equal(val, common.FromHex("f7f6db1eb17c6d582078e0ffdd0c")) {
-			b.Error("Invalid value")
-		}
-	}
-	b.ReportAllocs()
-}
-
-//BenchmarkFindLast2-4   	 1000000	      1456 ns/op	     504 B/op	      12 allocs/op
-func BenchmarkFindLast2(b *testing.B) {
-	encoded := createTestChangeSet()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		cs, err := DecodeChangeSet(encoded)
-		val, err := cs.FindLast(common.FromHex("56fb07ee"))
-		assert.NoError(b, err)
-		if !bytes.Equal(val, common.FromHex("f7f6db1eb17c6d582078e0ffdd0c")) {
-			b.Error("Invalid value")
-		}
-	}
-	b.ReportAllocs()
-}
-
-func (s *ChangeSet) FindLast(k []byte) ([]byte, error) {
-	for i := len(s.Changes) - 1; i >= 0; i-- {
-		if bytes.Equal(k, s.Changes[i].Key) {
-			return s.Changes[i].Value, nil
-		}
-	}
-	return nil, errors.New("not found")
 }
