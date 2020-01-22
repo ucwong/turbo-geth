@@ -47,7 +47,7 @@ func EncodeStorage(s *ChangeSet) ([]byte, error) {
 	}
 
 	notDefaultIncarnationList := make([]struct {
-		Id  uint8
+		ID  uint8
 		Inc uint64
 	}, 0)
 	change := make([]byte, 32+32+32)
@@ -76,16 +76,16 @@ func EncodeStorage(s *ChangeSet) ([]byte, error) {
 		incarnation := binary.BigEndian.Uint64(s.Changes[i].Key[common.HashLength : common.HashLength+common.IncarnationLength])
 		if incarnation != DefaultIncarnation {
 			notDefaultIncarnationList = append(notDefaultIncarnationList, struct {
-				Id  uint8
+				ID  uint8
 				Inc uint64
-			}{Id: uint8(i), Inc: incarnation})
+			}{ID: uint8(i), Inc: incarnation})
 		}
 	}
 	if len(notDefaultIncarnationList) > 0 {
 		spew.Dump(notDefaultIncarnationList)
 		b := make([]byte, storageEnodingIndexSize+common.IncarnationLength)
 		for _, v := range notDefaultIncarnationList {
-			binary.BigEndian.PutUint32(b[0:storageEnodingIndexSize], uint32(v.Id))
+			binary.BigEndian.PutUint32(b[0:storageEnodingIndexSize], uint32(v.ID))
 			binary.BigEndian.PutUint64(b[storageEnodingIndexSize:storageEnodingIndexSize+common.IncarnationLength], v.Inc)
 			_, err = buf.Write(b)
 			if err != nil {
