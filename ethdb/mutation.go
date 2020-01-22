@@ -124,18 +124,18 @@ func (m *mutation) Get(bucket, key []byte) ([]byte, error) {
 	return nil, ErrKeyNotFound
 }
 
-func (m *mutation) getChangeSetByBlockNoLock(bucket []byte, timestamp uint64) (*changeset.ChangeSet, error) {
+func (m *mutation) getChangeSetByBlockNoLock(bucket []byte, timestamp uint64) *changeset.ChangeSet {
 	switch {
 	case bytes.Equal(bucket, dbutils.AccountsHistoryBucket):
 		if _, ok := m.accountChangeSetByBlock[timestamp]; !ok {
 			m.accountChangeSetByBlock[timestamp] = changeset.NewChangeSet()
 		}
-		return m.accountChangeSetByBlock[timestamp], nil
+		return m.accountChangeSetByBlock[timestamp]
 	case bytes.Equal(bucket, dbutils.StorageHistoryBucket):
 		if _, ok := m.storageChangeSetByBlock[timestamp]; !ok {
 			m.storageChangeSetByBlock[timestamp] = changeset.NewChangeSet()
 		}
-		return m.storageChangeSetByBlock[timestamp], nil
+		return m.storageChangeSetByBlock[timestamp]
 	default:
 		panic("incorrect bucket")
 	}
@@ -202,12 +202,9 @@ func (m *mutation) PutS(hBucket, key, value []byte, timestamp uint64, noHistory 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	changeSet, err := m.getChangeSetByBlockNoLock(hBucket, timestamp)
-	if err != nil {
-		return err
-	}
+	changeSet := m.getChangeSetByBlockNoLock(hBucket, timestamp)
 
-	err = changeSet.Add(key, value)
+	err := changeSet.Add(key, value)
 	if err != nil {
 		return err
 	}
