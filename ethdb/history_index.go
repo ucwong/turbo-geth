@@ -1,6 +1,7 @@
 package ethdb
 
 import (
+	"github.com/ledgerwatch/turbo-geth/common/changeset"
 	"sort"
 
 	"github.com/ledgerwatch/bolt"
@@ -119,7 +120,7 @@ func BoltDBFindByHistory(tx *bolt.Tx, hBucket []byte, key []byte, timestamp uint
 	changeSetData, _ := csB.Get(dbutils.CompositeChangeSetKey(dbutils.EncodeTimestamp(changeSetBlock), hBucket))
 
 	var data []byte
-	data, err = dbutils.FindLast(changeSetData, key)
+	data, err = changeset.FindLast(changeSetData, key)
 	if err != nil {
 		return nil, ErrKeyNotFound
 	}
@@ -173,7 +174,7 @@ func BoltDBFindStorageByHistory(tx *bolt.Tx, hBucket []byte, key []byte, timesta
 	}
 
 	var data []byte
-	data, err = dbutils.FindLast(cs, key)
+	data, err = changeset.FindLast(cs, key)
 	if err != nil {
 		return nil, ErrKeyNotFound
 	}

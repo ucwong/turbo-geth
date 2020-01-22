@@ -20,6 +20,7 @@ package ethdb
 import (
 	"bytes"
 	"github.com/ledgerwatch/turbo-geth/common"
+	"github.com/ledgerwatch/turbo-geth/common/changeset"
 	"os"
 	"path"
 
@@ -637,7 +638,7 @@ func (db *BoltDatabase) DeleteTimestamp(timestamp uint64) error {
 			if hb == nil {
 				return nil
 			}
-			err := dbutils.Walk(v, func(kk, _ []byte) error {
+			err := changeset.Walk(v, func(kk, _ []byte) error {
 				kk = append(kk, encodedTS...)
 				return hb.Delete(kk)
 			})
@@ -700,8 +701,8 @@ func (db *BoltDatabase) NewBatch() DbWithPendingMutations {
 	m := &mutation{
 		db:                      db,
 		puts:                    newPuts(),
-		accountChangeSetByBlock: make(map[uint64]*dbutils.ChangeSet),
-		storageChangeSetByBlock: make(map[uint64]*dbutils.ChangeSet),
+		accountChangeSetByBlock: make(map[uint64]*changeset.ChangeSet),
+		storageChangeSetByBlock: make(map[uint64]*changeset.ChangeSet),
 	}
 	return m
 }

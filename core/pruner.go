@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"github.com/ledgerwatch/turbo-geth/common/changeset"
 	"sync"
 	"time"
 
@@ -146,7 +147,7 @@ func Prune(db ethdb.Database, blockNumFrom uint64, blockNumTo uint64) error {
 
 		keysToRemove.AccountChangeSet = append(keysToRemove.AccountChangeSet, key)
 
-		innerErr := dbutils.Walk(v, func(cKey, _ []byte) error {
+		innerErr := changeset.Walk(v, func(cKey, _ []byte) error {
 			compKey, _ := dbutils.CompositeKeySuffix(cKey, timestamp)
 			keysToRemove.AccountHistoryKeys = append(keysToRemove.AccountHistoryKeys, compKey)
 			return nil
@@ -170,7 +171,7 @@ func Prune(db ethdb.Database, blockNumFrom uint64, blockNumTo uint64) error {
 
 		keysToRemove.StorageChangeSet = append(keysToRemove.StorageChangeSet, key)
 
-		innerErr := dbutils.Walk(v, func(cKey, _ []byte) error {
+		innerErr := changeset.Walk(v, func(cKey, _ []byte) error {
 			compKey, _ := dbutils.CompositeKeySuffix(cKey, timestamp)
 			keysToRemove.StorageHistoryKeys = append(keysToRemove.StorageHistoryKeys, compKey)
 			return nil
