@@ -73,7 +73,7 @@ func (b AccountChangeSetBytes) Walk(f func(k, v []byte) error) error {
 	if len(b) == 0 {
 		return nil
 	}
-	if len(b) < 8 {
+	if len(b) < 4 {
 		return fmt.Errorf("decode: input too short (%d bytes)", len(b))
 	}
 
@@ -82,7 +82,7 @@ func (b AccountChangeSetBytes) Walk(f func(k, v []byte) error) error {
 	if n == 0 {
 		return nil
 	}
-	valOffset := 8 + n*accountKeySize + 4*n
+	valOffset := 4 + n*accountKeySize + 4*n
 	if uint32(len(b)) < valOffset {
 		return fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), valOffset)
 	}
@@ -93,12 +93,12 @@ func (b AccountChangeSetBytes) Walk(f func(k, v []byte) error) error {
 	}
 
 	for i := uint32(0); i < n; i++ {
-		key := b[8+i*accountKeySize : 8+(i+1)*accountKeySize]
+		key := b[4+i*accountKeySize : 4+(i+1)*accountKeySize]
 		idx0 := uint32(0)
 		if i > 0 {
-			idx0 = binary.BigEndian.Uint32(b[8+n*accountKeySize+4*(i-1) : 8+n*accountKeySize+4*i])
+			idx0 = binary.BigEndian.Uint32(b[4+n*accountKeySize+4*(i-1) : 4+n*accountKeySize+4*i])
 		}
-		idx1 := binary.BigEndian.Uint32(b[8+n*accountKeySize+4*i : 8+n*accountKeySize+4*(i+1)])
+		idx1 := binary.BigEndian.Uint32(b[4+n*accountKeySize+4*i : 4+n*accountKeySize+4*(i+1)])
 		val := b[valOffset+idx0 : valOffset+idx1]
 
 		err := f(key, val)
@@ -124,7 +124,7 @@ func (b AccountChangeSetBytes) FindLast(k []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	valOffset := 8 + n*accountKeySize + 4*n
+	valOffset := 4 + n*accountKeySize + 4*n
 	if uint32(len(b)) < valOffset {
 		return nil, fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), valOffset)
 	}
@@ -135,12 +135,12 @@ func (b AccountChangeSetBytes) FindLast(k []byte) ([]byte, error) {
 	}
 
 	for i := n - 1; int(i) >= 0; i-- {
-		key := b[8+i*accountKeySize : 8+(i+1)*accountKeySize]
+		key := b[4+i*accountKeySize : 4+(i+1)*accountKeySize]
 		idx0 := uint32(0)
 		if i > 0 {
-			idx0 = binary.BigEndian.Uint32(b[8+n*accountKeySize+4*(i-1) : 8+n*accountKeySize+4*i])
+			idx0 = binary.BigEndian.Uint32(b[4+n*accountKeySize+4*(i-1) : 4+n*accountKeySize+4*i])
 		}
-		idx1 := binary.BigEndian.Uint32(b[8+n*accountKeySize+4*i : 8+n*accountKeySize+4*(i+1)])
+		idx1 := binary.BigEndian.Uint32(b[4+n*accountKeySize+4*i : 4+n*accountKeySize+4*(i+1)])
 		val := b[valOffset+idx0 : valOffset+idx1]
 
 		if bytes.Equal(key, k) {
@@ -158,7 +158,7 @@ func DecodeAccounts(b []byte) (*ChangeSet, error) {
 		return h, nil
 	}
 
-	if len(b) < 8 {
+	if len(b) < 4 {
 		return h, fmt.Errorf("decode: input too short (%d bytes)", len(b))
 	}
 
@@ -170,7 +170,7 @@ func DecodeAccounts(b []byte) (*ChangeSet, error) {
 
 	h.Changes = make([]Change, numOfAccounts)
 
-	valOffset := 8 + numOfAccounts*accountKeySize + 4*numOfAccounts
+	valOffset := 4 + numOfAccounts*accountKeySize + 4*numOfAccounts
 	if uint32(len(b)) < valOffset {
 		return h, fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), valOffset)
 	}
@@ -181,12 +181,12 @@ func DecodeAccounts(b []byte) (*ChangeSet, error) {
 	}
 
 	for i := uint32(0); i < numOfAccounts; i++ {
-		key := b[8+i*accountKeySize : 8+(i+1)*accountKeySize]
+		key := b[4+i*accountKeySize : 4+(i+1)*accountKeySize]
 		idx0 := uint32(0)
 		if i > 0 {
-			idx0 = binary.BigEndian.Uint32(b[8+numOfAccounts*accountKeySize+4*(i-1) : 8+numOfAccounts*accountKeySize+4*i])
+			idx0 = binary.BigEndian.Uint32(b[4+numOfAccounts*accountKeySize+4*(i-1) : 4+numOfAccounts*accountKeySize+4*i])
 		}
-		idx1 := binary.BigEndian.Uint32(b[8+numOfAccounts*accountKeySize+4*i : 8+numOfAccounts*accountKeySize+4*(i+1)])
+		idx1 := binary.BigEndian.Uint32(b[4+numOfAccounts*accountKeySize+4*i : 4+numOfAccounts*accountKeySize+4*(i+1)])
 		val := b[valOffset+idx0 : valOffset+idx1]
 
 		h.Changes[i].Key = common.CopyBytes(key)
