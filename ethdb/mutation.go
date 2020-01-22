@@ -426,7 +426,7 @@ func (m *mutation) Commit() (uint64, error) {
 				err error
 			)
 			if debug.IsThinHistory() {
-				dat, err = changeset.EncodeAccountChangeSet(changes)
+				dat, err = changeset.EncodeAccounts(changes)
 			} else {
 				dat, err = changeset.EncodeChangeSet(changes)
 			}
@@ -473,7 +473,7 @@ func (m *mutation) Commit() (uint64, error) {
 				err error
 			)
 			if debug.IsThinHistory() {
-				dat, err = changeset.EncodeAccounts(changes)
+				dat, err = changeset.EncodeStorage(changes)
 				if err != nil {
 					return 0, err
 				}

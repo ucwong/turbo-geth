@@ -226,7 +226,11 @@ func TestMutationCommit(t *testing.T) {
 	}
 
 	sort.Sort(expectedChangeSet)
-	expectedData, err = changeset.EncodeStorage(expectedChangeSet)
+
+	expectedData, err = changeset.EncodeChangeSet(expectedChangeSet)
+	if debug.IsThinHistory() {
+		expectedData, err = changeset.EncodeStorage(expectedChangeSet)
+	}
 	assert.NoError(t, err)
 	if !bytes.Equal(csData, expectedData) {
 		spew.Dump("res", csData)
