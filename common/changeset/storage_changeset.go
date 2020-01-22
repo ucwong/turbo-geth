@@ -10,19 +10,17 @@ import (
 	"sort"
 )
 
-
 const (
 	DefaultIncarnation      = ^uint64(1)
 	storageEnodingIndexSize = 4
 	storageEnodingStartElem = uint32(4)
-	storageEnodingRowSize   = uint32(common.HashLength*3)
-
+	storageEnodingRowSize   = uint32(common.HashLength * 3)
 )
 
 func NewStorageChangeSet() *ChangeSet {
 	return &ChangeSet{
 		Changes: make([]Change, 0),
-		keyLen:2*common.HashLength+common.IncarnationLength,
+		keyLen:  2*common.HashLength + common.IncarnationLength,
 	}
 }
 
@@ -37,7 +35,7 @@ numOfElements:[addrHash:keyHash:value]:[elementNum:incarnation]
 
 uint32 integers are serialized as big-endian.
 */
-func EncodeStorage(s *ChangeSet)  ([]byte, error) {
+func EncodeStorage(s *ChangeSet) ([]byte, error) {
 	sort.Sort(s)
 	buf := new(bytes.Buffer)
 	intArr := make([]byte, 4)
@@ -48,11 +46,11 @@ func EncodeStorage(s *ChangeSet)  ([]byte, error) {
 		return nil, err
 	}
 
-	notDefaultIncarnationList:=make([]struct{
-		Id uint8
+	notDefaultIncarnationList := make([]struct {
+		Id  uint8
 		Inc uint64
-	},0)
-	change:=make([]byte, 32+32+32)
+	}, 0)
+	change := make([]byte, 32+32+32)
 	for i := 0; i < n; i++ {
 		//copy addrHash
 		copy(
@@ -75,18 +73,18 @@ func EncodeStorage(s *ChangeSet)  ([]byte, error) {
 			return nil, err
 		}
 
-		incarnation:=binary.BigEndian.Uint64(s.Changes[i].Key[common.HashLength:common.HashLength+common.IncarnationLength])
-		if incarnation!=DefaultIncarnation {
-			notDefaultIncarnationList=append(notDefaultIncarnationList, struct {
+		incarnation := binary.BigEndian.Uint64(s.Changes[i].Key[common.HashLength : common.HashLength+common.IncarnationLength])
+		if incarnation != DefaultIncarnation {
+			notDefaultIncarnationList = append(notDefaultIncarnationList, struct {
 				Id  uint8
 				Inc uint64
-			}{Id: uint8(i), Inc:incarnation})
+			}{Id: uint8(i), Inc: incarnation})
 		}
 	}
-	if len(notDefaultIncarnationList)>0 {
+	if len(notDefaultIncarnationList) > 0 {
 		spew.Dump(notDefaultIncarnationList)
-		b:=make([]byte, storageEnodingIndexSize+common.IncarnationLength)
-		for _, v:=range notDefaultIncarnationList {
+		b := make([]byte, storageEnodingIndexSize+common.IncarnationLength)
+		for _, v := range notDefaultIncarnationList {
 			binary.BigEndian.PutUint32(b[0:storageEnodingIndexSize], uint32(v.Id))
 			binary.BigEndian.PutUint64(b[storageEnodingIndexSize:storageEnodingIndexSize+common.IncarnationLength], v.Inc)
 			_, err = buf.Write(b)
@@ -98,7 +96,6 @@ func EncodeStorage(s *ChangeSet)  ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
-
 
 func DecodeStorage(b []byte) (*ChangeSet, error) {
 	h := new(ChangeSet)
@@ -118,34 +115,34 @@ func DecodeStorage(b []byte) (*ChangeSet, error) {
 		return h, nil
 	}
 
-	incarnationPosition :=storageEnodingStartElem+numOfElements*(3*common.HashLength)
+	incarnationPosition := storageEnodingStartElem + numOfElements*(3*common.HashLength)
 	if uint32(len(b)) < incarnationPosition {
 		return nil, fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), incarnationPosition)
 	}
 
 	//parse not default incarnations
-	incarnationsLength:=len(b[incarnationPosition:])
-	notDefaultIncarnation:=make(map[uint32]uint64, 0)
+	incarnationsLength := len(b[incarnationPosition:])
+	notDefaultIncarnation := make(map[uint32]uint64, 0)
 	var (
-		id uint32
+		id  uint32
 		inc uint64
-		ok bool
+		ok  bool
 	)
 
-	if incarnationsLength>0 {
+	if incarnationsLength > 0 {
 		if incarnationsLength%(storageEnodingIndexSize+common.IncarnationLength) != 0 {
 			return h, fmt.Errorf("decode: incarnatin part is incorrect(%d bytes)", len(b[incarnationPosition:]))
 		}
-		numOfIncarnations:=incarnationsLength/(storageEnodingIndexSize +common.IncarnationLength)
-		for i:=0;i<numOfIncarnations; i++ {
-			id=binary.BigEndian.Uint32(b[incarnationPosition : incarnationPosition+4])
-			inc=binary.BigEndian.Uint64(b[incarnationPosition+4 : incarnationPosition+4+8])
-			notDefaultIncarnation[id]=inc
-			incarnationPosition+=(storageEnodingIndexSize + common.IncarnationLength)
+		numOfIncarnations := incarnationsLength / (storageEnodingIndexSize + common.IncarnationLength)
+		for i := 0; i < numOfIncarnations; i++ {
+			id = binary.BigEndian.Uint32(b[incarnationPosition : incarnationPosition+4])
+			inc = binary.BigEndian.Uint64(b[incarnationPosition+4 : incarnationPosition+4+8])
+			notDefaultIncarnation[id] = inc
+			incarnationPosition += (storageEnodingIndexSize + common.IncarnationLength)
 		}
 	}
 
-	elementStart :=4
+	elementStart := 4
 	key := make([]byte, common.HashLength*2+common.IncarnationLength)
 	for i := uint32(0); i < numOfElements; i++ {
 		//copy addrHash
@@ -156,20 +153,19 @@ func DecodeStorage(b []byte) (*ChangeSet, error) {
 			b[elementStart+common.HashLength:elementStart+2*common.HashLength],
 		)
 		//set incarnation
-		if inc,ok=notDefaultIncarnation[i]; ok {
-			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength],inc)
+		if inc, ok = notDefaultIncarnation[i]; ok {
+			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], inc)
 		} else {
-			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength],DefaultIncarnation)
+			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], DefaultIncarnation)
 		}
 		h.Changes[i].Key = common.CopyBytes(key)
-		h.Changes[i].Value = common.CopyBytes(b[elementStart+2*common.HashLength:elementStart+3*common.HashLength])
+		h.Changes[i].Value = common.CopyBytes(b[elementStart+2*common.HashLength : elementStart+3*common.HashLength])
 		//shift element
-		elementStart+=3*common.HashLength
+		elementStart += 3 * common.HashLength
 	}
 
 	return h, nil
 }
-
 
 type StorageChangeSetBytes []byte
 
@@ -187,28 +183,28 @@ func (b StorageChangeSetBytes) Walk(f func(k, v []byte) error) error {
 		return nil
 	}
 
-	incarnationPosition :=storageEnodingStartElem+numOfItems*(3*common.HashLength)
+	incarnationPosition := storageEnodingStartElem + numOfItems*(3*common.HashLength)
 	if uint32(len(b)) < incarnationPosition {
 		return fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), incarnationPosition)
 	}
-	incarnationsLength:=len(b[incarnationPosition:])
-	notDefaultIncarnation:=make(map[uint32]uint64, 0)
+	incarnationsLength := len(b[incarnationPosition:])
+	notDefaultIncarnation := make(map[uint32]uint64, 0)
 	var (
-		id uint32
+		id  uint32
 		inc uint64
-		ok bool
+		ok  bool
 	)
 
-	if incarnationsLength>0 {
+	if incarnationsLength > 0 {
 		if incarnationsLength%(storageEnodingIndexSize+common.IncarnationLength) != 0 {
 			return fmt.Errorf("decode: incarnatin part is incorrect(%d bytes)", len(b[incarnationPosition:]))
 		}
-		numOfIncarnations:=incarnationsLength/(storageEnodingIndexSize +common.IncarnationLength)
-		for i:=0;i<numOfIncarnations; i++ {
-			id=binary.BigEndian.Uint32(b[incarnationPosition : incarnationPosition+storageEnodingIndexSize])
-			inc=binary.BigEndian.Uint64(b[incarnationPosition+storageEnodingIndexSize : incarnationPosition+storageEnodingIndexSize+common.IncarnationLength])
-			notDefaultIncarnation[id]=inc
-			incarnationPosition+=(storageEnodingIndexSize + common.IncarnationLength)
+		numOfIncarnations := incarnationsLength / (storageEnodingIndexSize + common.IncarnationLength)
+		for i := 0; i < numOfIncarnations; i++ {
+			id = binary.BigEndian.Uint32(b[incarnationPosition : incarnationPosition+storageEnodingIndexSize])
+			inc = binary.BigEndian.Uint64(b[incarnationPosition+storageEnodingIndexSize : incarnationPosition+storageEnodingIndexSize+common.IncarnationLength])
+			notDefaultIncarnation[id] = inc
+			incarnationPosition += (storageEnodingIndexSize + common.IncarnationLength)
 		}
 	}
 
@@ -222,10 +218,10 @@ func (b StorageChangeSetBytes) Walk(f func(k, v []byte) error) error {
 			b[storageEnodingStartElem+storageEnodingRowSize*i+common.HashLength:storageEnodingStartElem+storageEnodingRowSize*i+2*common.HashLength],
 		)
 		//set incarnation
-		if inc,ok=notDefaultIncarnation[i]; ok {
-			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength],inc)
+		if inc, ok = notDefaultIncarnation[i]; ok {
+			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], inc)
 		} else {
-			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength],DefaultIncarnation)
+			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], DefaultIncarnation)
 		}
 
 		err := f(common.CopyBytes(key), common.CopyBytes(b[storageEnodingStartElem+storageEnodingRowSize*i+2*common.HashLength:storageEnodingStartElem+storageEnodingRowSize*i+3*common.HashLength]))
@@ -250,29 +246,29 @@ func (b StorageChangeSetBytes) FindLast(k []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	incarnationPosition :=storageEnodingStartElem+numOfItems*(3*common.HashLength)
+	incarnationPosition := storageEnodingStartElem + numOfItems*(3*common.HashLength)
 	if uint32(len(b)) < incarnationPosition {
 		return nil, fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), incarnationPosition)
 	}
 
-	incarnationsLength:=len(b[incarnationPosition:])
-	notDefaultIncarnation:=make(map[uint32]uint64, 0)
+	incarnationsLength := len(b[incarnationPosition:])
+	notDefaultIncarnation := make(map[uint32]uint64, 0)
 	var (
-		id uint32
+		id  uint32
 		inc uint64
-		ok bool
+		ok  bool
 	)
 
-	if incarnationsLength>0 {
+	if incarnationsLength > 0 {
 		if incarnationsLength%(storageEnodingIndexSize+common.IncarnationLength) != 0 {
 			return nil, fmt.Errorf("decode: incarnatin part is incorrect(%d bytes)", len(b[incarnationPosition:]))
 		}
-		numOfIncarnations:=incarnationsLength/(storageEnodingIndexSize +common.IncarnationLength)
-		for i:=0;i<numOfIncarnations; i++ {
-			id=binary.BigEndian.Uint32(b[incarnationPosition : incarnationPosition+storageEnodingIndexSize])
-			inc=binary.BigEndian.Uint64(b[incarnationPosition+storageEnodingIndexSize : incarnationPosition+storageEnodingIndexSize+common.IncarnationLength])
-			notDefaultIncarnation[id]=inc
-			incarnationPosition+=(storageEnodingIndexSize + common.IncarnationLength)
+		numOfIncarnations := incarnationsLength / (storageEnodingIndexSize + common.IncarnationLength)
+		for i := 0; i < numOfIncarnations; i++ {
+			id = binary.BigEndian.Uint32(b[incarnationPosition : incarnationPosition+storageEnodingIndexSize])
+			inc = binary.BigEndian.Uint64(b[incarnationPosition+storageEnodingIndexSize : incarnationPosition+storageEnodingIndexSize+common.IncarnationLength])
+			notDefaultIncarnation[id] = inc
+			incarnationPosition += (storageEnodingIndexSize + common.IncarnationLength)
 		}
 	}
 
@@ -286,14 +282,14 @@ func (b StorageChangeSetBytes) FindLast(k []byte) ([]byte, error) {
 			b[storageEnodingStartElem+storageEnodingRowSize*i+common.HashLength:storageEnodingStartElem+storageEnodingRowSize*i+2*common.HashLength],
 		)
 		//set incarnation
-		if inc,ok=notDefaultIncarnation[i]; ok {
-			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength],inc)
+		if inc, ok = notDefaultIncarnation[i]; ok {
+			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], inc)
 		} else {
-			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength],DefaultIncarnation)
+			binary.BigEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], DefaultIncarnation)
 		}
 
 		if bytes.Equal(key, k) {
-			return common.CopyBytes(b[storageEnodingStartElem+storageEnodingRowSize*i+2*common.HashLength:storageEnodingStartElem+storageEnodingRowSize*i+3*common.HashLength]), nil
+			return common.CopyBytes(b[storageEnodingStartElem+storageEnodingRowSize*i+2*common.HashLength : storageEnodingStartElem+storageEnodingRowSize*i+3*common.HashLength]), nil
 		}
 	}
 	return nil, errors.New("not found")

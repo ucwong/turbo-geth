@@ -12,15 +12,13 @@ import (
 func NewAccountChangeSet() *ChangeSet {
 	return &ChangeSet{
 		Changes: make([]Change, 0),
-		keyLen:common.HashLength,
+		keyLen:  common.HashLength,
 	}
 }
 
-
 type AccountChangeSetBytes []byte
 
-const accountKeySize  = common.HashLength
-
+const accountKeySize = common.HashLength
 
 /*
 AccountChangeSet is serialized in the following manner in order to facilitate binary search:
@@ -70,7 +68,6 @@ func EncodeAccounts(s *ChangeSet) ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
-
 
 func (b AccountChangeSetBytes) Walk(f func(k, v []byte) error) error {
 	if len(b) == 0 {
@@ -199,4 +196,3 @@ func DecodeAccounts(b []byte) (*ChangeSet, error) {
 	sort.Sort(h)
 	return h, nil
 }
-

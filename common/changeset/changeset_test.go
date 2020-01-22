@@ -42,10 +42,9 @@ func TestEncoding(t *testing.T) {
 }
 
 const (
-	numOfElements = 30
+	numOfElements      = 30
 	defaultIncarnation = 1
 )
-
 
 func TestEncodingStorageWithoutNotDefaultIncarnation(t *testing.T) {
 	// empty StorageChangeSset first
@@ -53,29 +52,29 @@ func TestEncodingStorageWithoutNotDefaultIncarnation(t *testing.T) {
 	_, err := EncodeStorage(ch)
 	assert.NoError(t, err)
 
-	numOfElements:=10
-	for i:=0; i<numOfElements; i++ {
-		addrHash,_:=common.HashData([]byte("addrHash"+ strconv.Itoa(i)))
-		key,_:=common.HashData([]byte("key"+ strconv.Itoa(i)))
-		val,_:=common.HashData([]byte("val"+ strconv.Itoa(i)))
-		err:=ch.Add(dbutils.GenerateCompositeStorageKey(addrHash, defaultIncarnation, key), val.Bytes())
-		if err!=nil {
+	numOfElements := 10
+	for i := 0; i < numOfElements; i++ {
+		addrHash, _ := common.HashData([]byte("addrHash" + strconv.Itoa(i)))
+		key, _ := common.HashData([]byte("key" + strconv.Itoa(i)))
+		val, _ := common.HashData([]byte("val" + strconv.Itoa(i)))
+		err := ch.Add(dbutils.GenerateCompositeStorageKey(addrHash, defaultIncarnation, key), val.Bytes())
+		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	b,err:=EncodeStorage(ch)
-	if err!=nil {
+	b, err := EncodeStorage(ch)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	ch2,err:= DecodeStorage(b)
-	if err!=nil {
+	ch2, err := DecodeStorage(b)
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(ch, ch2) {
-		for i,v:=range ch.Changes {
+		for i, v := range ch.Changes {
 			if !bytes.Equal(v.Key, ch2.Changes[i].Key) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
 				fmt.Println("Diff ", i)
 				fmt.Println("k1", common.Bytes2Hex(v.Key), len(v.Key))
@@ -87,7 +86,6 @@ func TestEncodingStorageWithoutNotDefaultIncarnation(t *testing.T) {
 		t.Fatal("not equal")
 	}
 
-
 }
 
 func TestEncodingStorageWithtRandomIncarnation(t *testing.T) {
@@ -96,28 +94,28 @@ func TestEncodingStorageWithtRandomIncarnation(t *testing.T) {
 	_, err := EncodeStorage(ch)
 	assert.NoError(t, err)
 
-	for i:=0; i<numOfElements; i++ {
-		addrHash,_:=common.HashData([]byte("addrHash"+ strconv.Itoa(i)))
-		key,_:=common.HashData([]byte("key"+ strconv.Itoa(i)))
-		val,_:=common.HashData([]byte("val"+ strconv.Itoa(i)))
-		err:=ch.Add(dbutils.GenerateCompositeStorageKey(addrHash, rand.Uint64(), key), val.Bytes())
-		if err!=nil {
+	for i := 0; i < numOfElements; i++ {
+		addrHash, _ := common.HashData([]byte("addrHash" + strconv.Itoa(i)))
+		key, _ := common.HashData([]byte("key" + strconv.Itoa(i)))
+		val, _ := common.HashData([]byte("val" + strconv.Itoa(i)))
+		err := ch.Add(dbutils.GenerateCompositeStorageKey(addrHash, rand.Uint64(), key), val.Bytes())
+		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	b,err:=EncodeStorage(ch)
-	if err!=nil {
+	b, err := EncodeStorage(ch)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	ch2,err:= DecodeStorage(b)
-	if err!=nil {
+	ch2, err := DecodeStorage(b)
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(ch, ch2) {
-		for i,v:=range ch.Changes {
+		for i, v := range ch.Changes {
 			if !bytes.Equal(v.Key, ch2.Changes[i].Key) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
 				fmt.Println("Diff ", i)
 				fmt.Println("k1", common.Bytes2Hex(v.Key), len(v.Key))
@@ -143,7 +141,7 @@ func TestFindLast(t *testing.T) {
 func BenchmarkFindLast1(b *testing.B) {
 	encoded := createTestChangeSet()
 	b.ResetTimer()
-	for i:=0; i<b.N; i++ {
+	for i := 0; i < b.N; i++ {
 		val, err := FindLast(encoded, common.FromHex("56fb07ee"))
 		assert.NoError(b, err)
 		if !bytes.Equal(val, common.FromHex("f7f6db1eb17c6d582078e0ffdd0c")) {
@@ -157,7 +155,7 @@ func BenchmarkFindLast1(b *testing.B) {
 func BenchmarkFindLast2(b *testing.B) {
 	encoded := createTestChangeSet()
 	b.ResetTimer()
-	for i:=0; i<b.N; i++ {
+	for i := 0; i < b.N; i++ {
 		cs, err := DecodeChangeSet(encoded)
 		val, err := cs.FindLast(common.FromHex("56fb07ee"))
 		assert.NoError(b, err)

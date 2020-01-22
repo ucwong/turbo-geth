@@ -103,7 +103,7 @@ func EncodeChangeSet(s *ChangeSet) ([]byte, error) {
 }
 
 func (s *ChangeSet) KeySize() int {
-	if s.keyLen!=0 {
+	if s.keyLen != 0 {
 		return s.keyLen
 	}
 	for _, c := range s.Changes {
@@ -113,7 +113,7 @@ func (s *ChangeSet) KeySize() int {
 }
 
 func (s *ChangeSet) checkKeySize(key []byte) error {
-	if (s.Len() == 0&&s.KeySize()==0) || (len(key) == s.KeySize()&&len(key)>0) {
+	if (s.Len() == 0 && s.KeySize() == 0) || (len(key) == s.KeySize() && len(key) > 0) {
 		return nil
 	}
 
