@@ -19,7 +19,7 @@ const (
 
 func TestEncodingStorageWithoutNotDefaultIncarnation(t *testing.T) {
 	// empty StorageChangeSset first
-	ch := NewChangeSet()
+	ch := NewStorageChangeSet()
 	_, err := EncodeStorage(ch)
 	assert.NoError(t, err)
 
@@ -60,7 +60,7 @@ func TestEncodingStorageWithoutNotDefaultIncarnation(t *testing.T) {
 
 func TestEncodingStorageWithtRandomIncarnation(t *testing.T) {
 	// empty StorageChangeSet first
-	ch := NewChangeSet()
+	ch := NewStorageChangeSet()
 	_, err := EncodeStorage(ch)
 	assert.NoError(t, err)
 
