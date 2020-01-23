@@ -84,6 +84,7 @@ func (b AccountChangeSetBytes) Walk(f func(k, v []byte) error) error {
 	}
 	valOffset := 4 + n*accountKeySize + 4*n
 	if uint32(len(b)) < valOffset {
+		fmt.Println("walkAccounts account")
 		return fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), valOffset)
 	}
 
@@ -126,6 +127,7 @@ func (b AccountChangeSetBytes) FindLast(k []byte) ([]byte, error) {
 
 	valOffset := 4 + n*accountKeySize + 4*n
 	if uint32(len(b)) < valOffset {
+		fmt.Println("FindLastAccounts account")
 		return nil, fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), valOffset)
 	}
 
@@ -152,7 +154,7 @@ func (b AccountChangeSetBytes) FindLast(k []byte) ([]byte, error) {
 
 ////////////////////////////////////////////////
 func DecodeAccounts(b []byte) (*ChangeSet, error) {
-	h := new(ChangeSet)
+	h := NewAccountChangeSet()
 	h.Changes = make([]Change, 0)
 	if len(b) == 0 {
 		return h, nil
@@ -172,6 +174,7 @@ func DecodeAccounts(b []byte) (*ChangeSet, error) {
 
 	valOffset := 4 + numOfAccounts*accountKeySize + 4*numOfAccounts
 	if uint32(len(b)) < valOffset {
+		fmt.Println("DecodeAccounts account")
 		return h, fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), valOffset)
 	}
 

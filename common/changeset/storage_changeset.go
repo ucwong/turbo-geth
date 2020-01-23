@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/ledgerwatch/turbo-geth/common"
 	"sort"
 )
@@ -82,7 +81,6 @@ func EncodeStorage(s *ChangeSet) ([]byte, error) {
 		}
 	}
 	if len(notDefaultIncarnationList) > 0 {
-		spew.Dump(notDefaultIncarnationList)
 		b := make([]byte, storageEnodingIndexSize+common.IncarnationLength)
 		for _, v := range notDefaultIncarnationList {
 			binary.BigEndian.PutUint32(b[0:storageEnodingIndexSize], uint32(v.ID))
@@ -94,17 +92,19 @@ func EncodeStorage(s *ChangeSet) ([]byte, error) {
 		}
 	}
 
-	return buf.Bytes(), nil
+	byt:=buf.Bytes()
+	fmt.Println("enc storage", len(byt), len(s.Changes))
+	return byt, nil
 }
 
 func DecodeStorage(b []byte) (*ChangeSet, error) {
-	h := new(ChangeSet)
+	h := NewStorageChangeSet()
 	if len(b) == 0 {
 		h.Changes = make([]Change, 0)
 		return h, nil
 	}
 
-	if len(b) < 8 {
+	if len(b) < 4 {
 		return h, fmt.Errorf("decode: input too short (%d bytes)", len(b))
 	}
 
@@ -117,6 +117,7 @@ func DecodeStorage(b []byte) (*ChangeSet, error) {
 
 	incarnationPosition := storageEnodingStartElem + numOfElements*(3*common.HashLength)
 	if uint32(len(b)) < incarnationPosition {
+		fmt.Println("DecodeStorage")
 		return nil, fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), incarnationPosition)
 	}
 
@@ -185,6 +186,7 @@ func (b StorageChangeSetBytes) Walk(f func(k, v []byte) error) error {
 
 	incarnationPosition := storageEnodingStartElem + numOfItems*(3*common.HashLength)
 	if uint32(len(b)) < incarnationPosition {
+		fmt.Println("WalkStorage", numOfItems)
 		return fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), incarnationPosition)
 	}
 	incarnationsLength := len(b[incarnationPosition:])
@@ -248,6 +250,7 @@ func (b StorageChangeSetBytes) FindLast(k []byte) ([]byte, error) {
 
 	incarnationPosition := storageEnodingStartElem + numOfItems*(3*common.HashLength)
 	if uint32(len(b)) < incarnationPosition {
+		fmt.Println("FindLast storage")
 		return nil, fmt.Errorf("decode: input too short (%d bytes, expected at least %d bytes)", len(b), incarnationPosition)
 	}
 

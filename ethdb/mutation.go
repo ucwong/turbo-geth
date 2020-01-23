@@ -128,12 +128,20 @@ func (m *mutation) getChangeSetByBlockNoLock(bucket []byte, timestamp uint64) *c
 	switch {
 	case bytes.Equal(bucket, dbutils.AccountsHistoryBucket):
 		if _, ok := m.accountChangeSetByBlock[timestamp]; !ok {
-			m.accountChangeSetByBlock[timestamp] = changeset.NewChangeSet()
+			if debug.IsThinHistory() {
+				m.accountChangeSetByBlock[timestamp] = changeset.NewAccountChangeSet()
+			} else {
+				m.accountChangeSetByBlock[timestamp] = changeset.NewChangeSet()
+			}
 		}
 		return m.accountChangeSetByBlock[timestamp]
 	case bytes.Equal(bucket, dbutils.StorageHistoryBucket):
 		if _, ok := m.storageChangeSetByBlock[timestamp]; !ok {
-			m.storageChangeSetByBlock[timestamp] = changeset.NewChangeSet()
+			if debug.IsThinHistory() {
+				m.storageChangeSetByBlock[timestamp] = changeset.NewStorageChangeSet()
+			} else {
+				m.storageChangeSetByBlock[timestamp] = changeset.NewChangeSet()
+			}
 		}
 		return m.storageChangeSetByBlock[timestamp]
 	default:
@@ -203,7 +211,6 @@ func (m *mutation) PutS(hBucket, key, value []byte, timestamp uint64, noHistory 
 	defer m.mu.Unlock()
 
 	changeSet := m.getChangeSetByBlockNoLock(hBucket, timestamp)
-
 	err := changeSet.Add(key, value)
 	if err != nil {
 		return err
@@ -298,7 +305,7 @@ func (m *mutation) DeleteTimestamp(timestamp uint64) error {
 
 	if debug.IsThinHistory() {
 		if len(changedAccounts) > 0 {
-			innerErr := changeset.Walk(changedAccounts, func(kk, _ []byte) error {
+			innerErr := changeset.AccountChangeSetBytes(changedAccounts).Walk(func(kk, _ []byte) error {
 				indexBytes, getErr := m.getNoLock(dbutils.AccountsHistoryBucket, kk)
 				if getErr != nil {
 					return nil
@@ -327,7 +334,7 @@ func (m *mutation) DeleteTimestamp(timestamp uint64) error {
 		}
 
 		if len(changedStorage) > 0 {
-			innerErr := changeset.Walk(changedStorage, func(kk, _ []byte) error {
+			innerErr := changeset.StorageChangeSetBytes(changedStorage).Walk(func(kk, _ []byte) error {
 				indexBytes, getErr := m.getNoLock(dbutils.StorageHistoryBucket, kk)
 				if getErr != nil {
 					return nil
@@ -423,6 +430,11 @@ func (m *mutation) Commit() (uint64, error) {
 				err error
 			)
 			if debug.IsThinHistory() {
+				fmt.Println("AccountCommit")
+				for _,vv:=range changes.Changes {
+					fmt.Println(common.Bytes2Hex(vv.Key)," - ", common.Bytes2Hex(vv.Value))
+				}
+
 				dat, err = changeset.EncodeAccounts(changes)
 			} else {
 				dat, err = changeset.EncodeChangeSet(changes)
@@ -470,6 +482,10 @@ func (m *mutation) Commit() (uint64, error) {
 				err error
 			)
 			if debug.IsThinHistory() {
+				fmt.Println("StorageCommit")
+				for _,vv:=range changes.Changes {
+					fmt.Println(common.Bytes2Hex(vv.Key)," - ", common.Bytes2Hex(vv.Value))
+				}
 				dat, err = changeset.EncodeStorage(changes)
 				if err != nil {
 					return 0, err

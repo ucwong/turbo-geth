@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/ledgerwatch/turbo-geth/common/changeset"
+	"github.com/ledgerwatch/turbo-geth/common/debug"
 	"sync"
 	"time"
 
@@ -170,12 +171,20 @@ func Prune(db ethdb.Database, blockNumFrom uint64, blockNumTo uint64) error {
 		}
 
 		keysToRemove.StorageChangeSet = append(keysToRemove.StorageChangeSet, key)
+		var innerErr error
+		if debug.IsThinHistory() {
+			innerErr = changeset.StorageChangeSetBytes(v).Walk(func(cKey, _ []byte) error {
+				//todo implement pruning for thin history
+				return nil
+			})
+		} else {
+			innerErr = changeset.Walk(v, func(cKey, _ []byte) error {
+				compKey, _ := dbutils.CompositeKeySuffix(cKey, timestamp)
+				keysToRemove.StorageHistoryKeys = append(keysToRemove.StorageHistoryKeys, compKey)
+				return nil
+			})
+		}
 
-		innerErr := changeset.Walk(v, func(cKey, _ []byte) error {
-			compKey, _ := dbutils.CompositeKeySuffix(cKey, timestamp)
-			keysToRemove.StorageHistoryKeys = append(keysToRemove.StorageHistoryKeys, compKey)
-			return nil
-		})
 		if innerErr != nil {
 			return false, innerErr
 		}
