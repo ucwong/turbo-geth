@@ -431,8 +431,8 @@ func (m *mutation) Commit() (uint64, error) {
 			)
 			if debug.IsThinHistory() {
 				fmt.Println("AccountCommit")
-				for _,vv:=range changes.Changes {
-					fmt.Println(common.Bytes2Hex(vv.Key)," - ", common.Bytes2Hex(vv.Value))
+				for _, vv := range changes.Changes {
+					fmt.Println(common.Bytes2Hex(vv.Key), " - ", common.Bytes2Hex(vv.Value))
 				}
 
 				dat, err = changeset.EncodeAccounts(changes)
@@ -483,8 +483,8 @@ func (m *mutation) Commit() (uint64, error) {
 			)
 			if debug.IsThinHistory() {
 				fmt.Println("StorageCommit")
-				for _,vv:=range changes.Changes {
-					fmt.Println(common.Bytes2Hex(vv.Key)," - ", common.Bytes2Hex(vv.Value))
+				for _, vv := range changes.Changes {
+					fmt.Println(common.Bytes2Hex(vv.Key), " - ", common.Bytes2Hex(vv.Value))
 				}
 				dat, err = changeset.EncodeStorage(changes)
 				if err != nil {

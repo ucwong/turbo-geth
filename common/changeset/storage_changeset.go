@@ -92,7 +92,7 @@ func EncodeStorage(s *ChangeSet) ([]byte, error) {
 		}
 	}
 
-	byt:=buf.Bytes()
+	byt := buf.Bytes()
 	fmt.Println("enc storage", len(byt), len(s.Changes))
 	return byt, nil
 }

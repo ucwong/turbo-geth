@@ -122,10 +122,10 @@ func BoltDBFindByHistory(tx *bolt.Tx, hBucket []byte, key []byte, timestamp uint
 	changeSetData, _ := csB.Get(dbutils.CompositeChangeSetKey(dbutils.EncodeTimestamp(changeSetBlock), hBucket))
 
 	var data []byte
-	switch  {
-	case debug.IsThinHistory()&& bytes.Equal(dbutils.AccountsHistoryBucket, hBucket):
+	switch {
+	case debug.IsThinHistory() && bytes.Equal(dbutils.AccountsHistoryBucket, hBucket):
 		data, err = changeset.AccountChangeSetBytes(changeSetData).FindLast(key)
-	case debug.IsThinHistory()&& bytes.Equal(dbutils.StorageChangeSetBucket, hBucket):
+	case debug.IsThinHistory() && bytes.Equal(dbutils.StorageChangeSetBucket, hBucket):
 		data, err = changeset.StorageChangeSetBytes(changeSetData).FindLast(key)
 	default:
 		data, err = changeset.FindLast(changeSetData, key)

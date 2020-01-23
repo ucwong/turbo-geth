@@ -16,7 +16,7 @@ func TestEncodingAccount(t *testing.T) {
 	_, err := EncodeAccounts(ch)
 	assert.NoError(t, err)
 
-	vals:=[][]byte{
+	vals := [][]byte{
 		common.FromHex("f7f6db1eb17c6d582078e0ffdd0c"),
 		common.FromHex("b1e9b5c16355eede662031dd621d08faf4ea"),
 		common.FromHex("862cf52b74f1cea41ddd8ffa4b3e7c7790"),
@@ -56,9 +56,9 @@ func TestEncodingAccount(t *testing.T) {
 		t.Fatal("not equal")
 	}
 
-	csBytes:=AccountChangeSetBytes(b)
-	i:=0
-	err=csBytes.Walk(func(k, v []byte) error {
+	csBytes := AccountChangeSetBytes(b)
+	i := 0
+	err = csBytes.Walk(func(k, v []byte) error {
 		if !bytes.Equal(k, ch2.Changes[i].Key) || !bytes.Equal(v, ch2.Changes[i].Value) {
 			fmt.Println("Diff ", i)
 			fmt.Println("k1", common.Bytes2Hex(k), len(k))
@@ -70,16 +70,16 @@ func TestEncodingAccount(t *testing.T) {
 		i++
 		return nil
 	})
-	if err!=nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _,v:=range ch.Changes {
-		val,err:=csBytes.FindLast(v.Key)
-		if err!=nil {
+	for _, v := range ch.Changes {
+		val, err := csBytes.FindLast(v.Key)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(v.Value,val) {
+		if !bytes.Equal(v.Value, val) {
 			t.Fatal("not equal")
 		}
 	}

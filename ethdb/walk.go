@@ -49,10 +49,10 @@ func RewindData(db Getter, timestampSrc, timestampDst uint64, df func(bucket, ke
 			}
 
 			var innerErr error
-			fmt.Println("AccountChangeSetBytes walk", )
+			fmt.Println("AccountChangeSetBytes walk")
 			if debug.IsThinHistory() {
 				innerErr = changeset.AccountChangeSetBytes(v).Walk(func(kk, vv []byte) error {
-					fmt.Println(common.Bytes2Hex(kk)," - ", common.Bytes2Hex(vv))
+					fmt.Println(common.Bytes2Hex(kk), " - ", common.Bytes2Hex(vv))
 					if _, ok = t[string(kk)]; !ok {
 						t[string(kk)] = vv
 					}
@@ -93,7 +93,7 @@ func RewindData(db Getter, timestampSrc, timestampDst uint64, df func(bucket, ke
 			fmt.Println("StorageChangeSetBytes walk")
 			if debug.IsThinHistory() {
 				innerErr = changeset.StorageChangeSetBytes(v).Walk(func(kk, vv []byte) error {
-					fmt.Println(common.Bytes2Hex(kk)," - ",common.Bytes2Hex(vv))
+					fmt.Println(common.Bytes2Hex(kk), " - ", common.Bytes2Hex(vv))
 					if _, ok = t[string(kk)]; !ok {
 						t[string(kk)] = vv
 					}
