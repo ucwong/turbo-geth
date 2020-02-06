@@ -83,15 +83,15 @@ func visualNode(nd node, hex []byte, w io.Writer, highlights [][]byte, opts *Vis
 			if leaves != nil {
 				leaves[string(hex)] = struct{}{}
 				/*
-				var valStr string
-				if opts.ValHex {
-					valStr = fmt.Sprintf("%x", []byte(v))
-				} else {
-					valStr = string(v)
-				}
-				if opts.ValCompressed && len(valStr) > 10 {
-					valStr = fmt.Sprintf("%x..%x", []byte(v)[:2], []byte(v)[len(v)-2:])
-				}
+					var valStr string
+					if opts.ValHex {
+						valStr = fmt.Sprintf("%x", []byte(v))
+					} else {
+						valStr = string(v)
+					}
+					if opts.ValCompressed && len(valStr) > 10 {
+						valStr = fmt.Sprintf("%x..%x", []byte(v)[:2], []byte(v)[len(v)-2:])
+					}
 				*/
 				valHex := keybytesToHex(v)
 				valHex = valHex[:len(valHex)-1]
