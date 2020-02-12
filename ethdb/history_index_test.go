@@ -1,6 +1,8 @@
 package ethdb
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestHistoryIndex_Search(t *testing.T) {
 	index := &HistoryIndex{3, 5, 8}

@@ -15,6 +15,7 @@ var (
 	//key - address hash
 	//value - list of block where it's changed
 	AccountsHistoryBucket = []byte("hAT")
+	AccountsHistoryIndexBucket = []byte("hATi")
 
 	//key - address hash + incarnation + storage key hash
 	//value - storage value(common.hash)
@@ -27,6 +28,7 @@ var (
 	//key - address hash
 	//value - list of block where it's changed
 	StorageHistoryBucket = []byte("hST")
+	StorageHistoryIndexBucket = []byte("hSTi")
 
 	//key - contract code hash
 	//value - contract code
@@ -39,6 +41,8 @@ var (
 	// key - encoded timestamp(block number) + history bucket(hAT/hST)
 	// value - encoded ChangeSet{k - addrHash|compositeKey(for storage) v - account(encoded) | originalValue(common.Hash)}
 	ChangeSetBucket = []byte("ChangeSet")
+	AccountChangeSetBucket = []byte("acs")
+	StorageChangeSetBucket = []byte("scs")
 
 	// databaseVerisionKey tracks the current database version.
 	DatabaseVerisionKey = []byte("DatabaseVersion")

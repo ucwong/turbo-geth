@@ -1,6 +1,8 @@
 package ethdb
 
 import (
+	"encoding/binary"
+	"fmt"
 	"github.com/ledgerwatch/bolt"
 	"github.com/ledgerwatch/turbo-geth/common/dbutils"
 	"github.com/ledgerwatch/turbo-geth/rlp"
@@ -127,3 +129,122 @@ func BoltDBFindByHistory(tx *bolt.Tx, hBucket []byte, key []byte, timestamp uint
 	return data, nil
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const (
+	LEN_BYTES = 4
+	ITEM_LEN = 8
+)
+
+func NewHistoryIndex() *HistoryIndexBytes  {
+	b:=make(HistoryIndexBytes, LEN_BYTES,36)
+	return &b
+}
+
+func WrapHistoryIndex(b []byte) *HistoryIndexBytes  {
+	index:=HistoryIndexBytes(b)
+	if len(index)==0 {
+		index=make(HistoryIndexBytes, LEN_BYTES,36)
+	}
+	return &index
+}
+
+
+type HistoryIndexBytes []byte
+func (hi *HistoryIndexBytes) Decode() ([]uint64,error) {
+	if hi==nil {
+		return []uint64{}, nil
+	}
+	if len(*hi) <= LEN_BYTES {
+		return []uint64{}, nil
+	}
+	decoded:=make([]uint64, (len(*hi)-LEN_BYTES)/ITEM_LEN)
+	for i:=range decoded {
+		decoded[i] = binary.LittleEndian.Uint64((*hi)[LEN_BYTES+i*ITEM_LEN:LEN_BYTES+i*ITEM_LEN+ITEM_LEN])
+	}
+	return decoded, nil
+}
+
+func (hi *HistoryIndexBytes) Append(v uint64) *HistoryIndexBytes {
+	numOfElements:=binary.LittleEndian.Uint32((*hi)[0:LEN_BYTES])
+	b:=make([]byte, ITEM_LEN)
+	binary.LittleEndian.PutUint64(b, v)
+	*hi = append(*hi, b...)
+	binary.LittleEndian.PutUint32((*hi)[0:LEN_BYTES], numOfElements+1)
+	return hi
+}
+
+func (hi *HistoryIndexBytes) Len() uint32 {
+	return binary.LittleEndian.Uint32((*hi)[0:LEN_BYTES])
+}
+
+//most common operation is remove one from the tail
+func (hi *HistoryIndexBytes) Remove(v uint64) *HistoryIndexBytes {
+	numOfElements:=binary.LittleEndian.Uint32((*hi)[0:LEN_BYTES])
+
+	var currentElement uint64
+
+Loop:
+	for i := numOfElements; i > 0; i-- {
+		elemEnd:=LEN_BYTES+i*8
+		currentElement = binary.LittleEndian.Uint64((*hi)[elemEnd-8:elemEnd])
+		switch  {
+		case currentElement==v:
+			*hi=append((*hi)[:elemEnd-ITEM_LEN], (*hi)[elemEnd:]...)
+			numOfElements--
+		case currentElement<v:
+			break Loop
+		default:
+			continue
+		}
+	}
+	binary.LittleEndian.PutUint32((*hi)[0:LEN_BYTES], numOfElements)
+	return hi
+}
+
+func (hi *HistoryIndexBytes) Search(v uint64) (uint64, bool) {
+	if len(*hi) < 4 {
+		fmt.Println(1)
+		return 0, false
+	}
+	ln:=binary.LittleEndian.Uint32((*hi)[0:LEN_BYTES])
+	if ln == 0 {
+		fmt.Println(2)
+		return 0, false
+	}
+
+	//check last element
+	lastElement:=binary.LittleEndian.Uint64((*hi)[LEN_BYTES+ITEM_LEN*(ln)-ITEM_LEN:LEN_BYTES+ITEM_LEN*(ln)])
+	if  lastElement < v {
+		return 0, false
+	}
+	var currentElement uint64
+	for i := ln - 1; i > 0; i-- {
+		elemEnd:=LEN_BYTES+i*ITEM_LEN
+		currentElement = binary.LittleEndian.Uint64((*hi)[elemEnd-ITEM_LEN:elemEnd])
+		switch  {
+		case currentElement==v:
+			return v, true
+		case currentElement<v:
+			return binary.LittleEndian.Uint64((*hi)[elemEnd:elemEnd+ITEM_LEN]), true
+		default:
+			continue
+		}
+	}
+	return binary.LittleEndian.Uint64((*hi)[LEN_BYTES:LEN_BYTES+ITEM_LEN]), true
+}
+
+
