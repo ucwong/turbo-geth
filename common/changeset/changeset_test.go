@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	numOfElements      = 30
+	numOfElements      = 2
 	defaultIncarnation = 1
 )
 
