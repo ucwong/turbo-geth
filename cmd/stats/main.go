@@ -18,8 +18,8 @@ import (
 )
 
 func main() {
-	testMigrate()
-	//storageFormatDiff2()
+	//testMigrate()
+	storageFormatDiff2()
 	//collectStorageNumOfDuplicate()
 }
 
@@ -564,12 +564,29 @@ func storageFormatDiff() {
 
 }
 func storageFormatDiff2() {
-	var currentSize, expSize, expSizeDict uint64
+	var currentSize, expSize, expSizeDict, expSizeDictNew uint64
 	var expErrors, expDictErrors uint64
 	db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fst, err := os.Create("/home/b00ris/go/src/github.com/ledgerwatch/changesets_storage_encode_size.txt")
+	defer fst.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	csvStorage := csv.NewWriter(fst)
+	err = csvStorage.Write([]string{
+		"block",
+		"cs_size",
+		"exp_cs_size",
+		"dict_size",
+		"new_size",
+	})
+
+
 
 	err = db.Walk(dbutils.ChangeSetBucket, []byte{}, 0, func(k, v []byte) (b bool, e error) {
 		ts, bucket := dbutils.DecodeTimestamp(k)
@@ -609,6 +626,11 @@ func storageFormatDiff2() {
 				fmt.Println("DICT not equal", ts)
 				expDictErrors++
 			}
+			expCsEncDictNew, err := changeset.EncodeStorageDict2(cs2)
+			if err != nil {
+				fmt.Println(ts, string(bucket), err)
+				return false, err
+			}
 
 			expCsEnc, err := changeset.EncodeStorage(cs2)
 			if err != nil {
@@ -628,6 +650,15 @@ func storageFormatDiff2() {
 			currentSize += uint64(len(v))
 			expSize += uint64(len(expCsEnc))
 			expSizeDict += uint64(len(expCsEnc2))
+			expSizeDictNew += uint64(len(expCsEncDictNew))
+			csvStorage.Write([]string{
+				strconv.FormatUint(ts,10),
+				strconv.Itoa(len(v)),
+				strconv.Itoa(len(expCsEnc)),
+				strconv.Itoa(len(expCsEnc2)),
+				strconv.Itoa(len(expCsEncDictNew)),
+			})
+
 		default:
 			fmt.Println(string(k), "------------------------------")
 		}
