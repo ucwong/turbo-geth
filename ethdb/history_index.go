@@ -146,18 +146,19 @@ func BoltDBFindByHistory(tx *bolt.Tx, hBucket []byte, key []byte, timestamp uint
 
 const (
 	LEN_BYTES = 4
+	LenOfUINT32Bytes = 4
 	ITEM_LEN = 8
 )
 
 func NewHistoryIndex() *HistoryIndexBytes  {
-	b:=make(HistoryIndexBytes, LEN_BYTES,36)
+	b:=make(HistoryIndexBytes, LEN_BYTES,16)
 	return &b
 }
 
 func WrapHistoryIndex(b []byte) *HistoryIndexBytes  {
 	index:=HistoryIndexBytes(b)
 	if len(index)==0 {
-		index=make(HistoryIndexBytes, LEN_BYTES,36)
+		index=make(HistoryIndexBytes, LEN_BYTES,16)
 	}
 	return &index
 }

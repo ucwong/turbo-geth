@@ -575,8 +575,8 @@ func DecodeStorageDict2(b []byte) (*ChangeSet, error) {
 	//incarnationsLength := len(b[incarnationPosition:])
 	//notDefaultIncarnation := make(map[uint32]uint64, 0)
 	var (
-		id  uint32
-		inc uint64
+		//id  uint32
+		//inc uint64
 		//ok  bool
 	)
 
