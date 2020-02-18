@@ -143,7 +143,7 @@ func (hi *HistoryIndexBytes) Search(v uint64) (uint64, bool) {
 	var elemEnd uint32
 
 	for i := numOfElements - 1; i > 0; i-- {
-		if i-numOfUint32Elements > 0 {
+		if i > numOfUint32Elements {
 			elemEnd = LenBytes*2 + numOfUint32Elements*4+ (i-numOfUint32Elements)*8
 			currentElement = binary.LittleEndian.Uint64((*hi)[elemEnd-8 : elemEnd])
 			itemLen=8
@@ -157,14 +157,17 @@ func (hi *HistoryIndexBytes) Search(v uint64) (uint64, bool) {
 		case currentElement == v:
 			return v, true
 		case currentElement < v:
+			if itemLen == 4 {
+				return uint64(binary.LittleEndian.Uint32((*hi)[elemEnd : elemEnd+itemLen])), true
+			}
 			return binary.LittleEndian.Uint64((*hi)[elemEnd : elemEnd+itemLen]), true
 		default:
 			continue
 		}
 	}
 	if numOfUint32Elements==0 {
-		return binary.LittleEndian.Uint64((*hi)[LenBytes : LenBytes+ItemLen]), true
+		return binary.LittleEndian.Uint64((*hi)[LenBytes*2 : 2*LenBytes+ItemLen]), true
 	}else {
-		return binary.LittleEndian.Uint64((*hi)[LenBytes : LenBytes+4]), true
+		return uint64(binary.LittleEndian.Uint32((*hi)[2*LenBytes : 2*LenBytes+4])), true
 	}
 }

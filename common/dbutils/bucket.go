@@ -66,6 +66,7 @@ var (
 	HeaderNumberPrefix = []byte("H") // headerNumberPrefix + hash -> num (uint64 big endian)
 
 	BlockBodyPrefix     = []byte("b") // blockBodyPrefix + num (uint64 big endian) + hash -> block body
+	BlockBodyPrefixCompressed     = []byte("b2") // blockBodyPrefix + num (uint64 big endian) + hash -> block body
 	BlockReceiptsPrefix = []byte("r") // blockReceiptsPrefix + num (uint64 big endian) + hash -> block receipts
 
 	TxLookupPrefix  = []byte("l") // txLookupPrefix + hash -> transaction/receipt lookup metadata
