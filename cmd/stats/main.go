@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/binary"
 	"encoding/csv"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"github.com/ledgerwatch/turbo-geth/common/changeset"
 	"github.com/ledgerwatch/turbo-geth/common/dbutils"
 	"github.com/ledgerwatch/turbo-geth/ethdb"
+	"github.com/ugorji/go/codec"
 	"log"
 	"os"
 	"reflect"
@@ -18,8 +20,10 @@ import (
 )
 
 func main() {
+	//copyCodeContracts()
+	checkCompressionOfBlocks()
 	//testMigrate()
-	storageFormatDiff2()
+	//storageFormatDiff2()
 	//collectStorageNumOfDuplicate()
 }
 
@@ -967,11 +971,119 @@ func collectStorageNumOfDuplicate() {
 
 }
 
+func checkCompressionOfBlocks()  {
+		var rlpSize, gzipRlpSize, gzipRlp2Size uint64
+		db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fst, err := os.Create("/home/b00ris/go/src/github.com/ledgerwatch/blocks_encode_size.csv")
+		defer fst.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		csvStorage := csv.NewWriter(fst)
+		err = csvStorage.Write([]string{
+			"block",
+			"rlp",
+			"gzip_rlp",
+			"gzip_rlp2",
+		})
+
+
+		var handle codec.CborHandle
+		handle.WriterBufferSize = 64 * 1024
+		err = db.Walk(dbutils.BlockBodyPrefix, []byte{}, 0, func(k, v []byte) (b bool, e error) {
+			block:=binary.BigEndian.Uint64(k[0:8])
+			fmt.Println(block)
+
+			rlpLen:=len(v)
+
+			var rlpBuf bytes.Buffer
+			zrlp := gzip.NewWriter(&rlpBuf)
+			_, err = zrlp.Write(v)
+			if err!=nil {
+				return false, err
+			}
+			zrlp.Close()
+			gzRlpLen:=len(rlpBuf.Bytes())
+
+			var rlpBuf2 bytes.Buffer
+			zrlp2,_ := gzip.NewWriterLevel(&rlpBuf2,1)
+			_, err = zrlp2.Write(v)
+			if err!=nil {
+				return false, err
+			}
+			zrlp2.Close()
+			gzRlpLen2:=len(rlpBuf2.Bytes())
+
+
+
+
+			rlpSize+=uint64(rlpLen)
+			gzipRlpSize+=uint64(gzRlpLen)
+			gzipRlp2Size+=uint64(gzRlpLen2)
+			fmt.Println("stats", rlpSize, gzipRlpSize, gzipRlp2Size)
+
+
+			err = csvStorage.Write([]string{
+				strconv.FormatUint(binary.BigEndian.Uint64(k[0:8]), 10),
+				strconv.Itoa(rlpLen),
+				strconv.Itoa(gzRlpLen),
+				strconv.Itoa(gzRlpLen2),
+
+			})
+			if err!=nil {
+				return false, err
+			}
+			return true, nil
+		})
+		if err != nil {
+			log.Println("err", err)
+		}
+		fmt.Println("rlp size      ", rlpSize)
+		fmt.Println("gzip rlp size ", gzipRlpSize)
+		fmt.Println("gzip rlp2 size", gzipRlp2Size)
+}
+
+
+func copyCodeContracts()  {
+		db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+
+		db2, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/contract_codes")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = db.Walk(dbutils.CodeBucket, []byte{}, 0, func(k, v []byte) (b bool, e error) {
+			err:=db2.Put(dbutils.CodeBucket, k,v)
+			if err!=nil {
+				return false, err
+			}
+			return true, nil
+		})
+		if err != nil {
+			log.Println("err", err)
+		}
+}
+
 /*
 Current size 75989100632
 Exp size 65702267087
 Exp errors 0
 Dict size 56629648083
 Dict errors 0
+
+
+
+rlp size       126317329945
+gzip rlp size  84384714811
+gzip rlp2 size 88306259484
 
 */
