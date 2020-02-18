@@ -69,10 +69,12 @@ func TestHistoryIndex_Append(t *testing.T) {
 	}
 
 	index.Remove(9)
+	fmt.Println(index)
 	res, err = index.Decode()
 	if err != nil {
 		t.Fatal(err)
 	}
+	fmt.Println("res", res)
 
 	if index.Len() != 8 {
 		t.Fatal()
@@ -82,7 +84,9 @@ func TestHistoryIndex_Append(t *testing.T) {
 		t.Fatal("Not equal")
 	}
 
+	fmt.Println("remove 5")
 	index.Remove(5)
+	fmt.Println(index)
 	res, err = index.Decode()
 	if err != nil {
 		t.Fatal(err)
