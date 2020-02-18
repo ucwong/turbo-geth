@@ -572,33 +572,39 @@ func DecodeStorageDict2(b []byte) (*ChangeSet, error) {
 	//}
 
 	//parse not default incarnations
-	//incarnationsLength := len(b[incarnationPosition:])
-	//notDefaultIncarnation := make(map[uint32]uint64, 0)
+
+	//????????
+	incarnationPosition:=lenOfValsPos+uint32(calculateIncarnationPos(b[lenOfValsPos:], numOfUint8, numOfUint16, numOfUint32))
+	incarnationsLength := len(b[incarnationPosition:])
+	notDefaultIncarnation := make(map[uint32]uint64, 0)
 	var (
 		id  uint32
 		inc uint64
-		//ok  bool
+		ok  bool
 	)
 
-	//if incarnationsLength > 0 && false {
-	//	if incarnationsLength%(storageEnodingIndexSize+common.IncarnationLength) != 0 {
-	//		return h, fmt.Errorf("decode: incarnatin part is incorrect(%d bytes)", len(b[incarnationPosition:]))
-	//	}
-	//	numOfIncarnations := incarnationsLength / (storageEnodingIndexSize + common.IncarnationLength)
-	//	for i := 0; i < numOfIncarnations; i++ {
-	//		id = binary.LittleEndian.Uint32(b[incarnationPosition : incarnationPosition+4])
-	//		inc = binary.LittleEndian.Uint64(b[incarnationPosition+4 : incarnationPosition+4+8])
-	//		notDefaultIncarnation[id] = inc
-	//		incarnationPosition += (storageEnodingIndexSize + common.IncarnationLength)
-	//	}
-	//}
+	if incarnationsLength > 0 {
+		if incarnationsLength%(2+common.IncarnationLength) != 0 {
+			fmt.Println("+inc")
+			fmt.Println(b[incarnationPosition:])
+			fmt.Println("-inc")
+			return h, fmt.Errorf("decode: incarnatin part is incorrect(%d bytes)", len(b[incarnationPosition:]))
+		}
+		numOfIncarnations := incarnationsLength / (2 + common.IncarnationLength)
+		for i := 0; i < numOfIncarnations; i++ {
+			id = binary.LittleEndian.Uint32(b[incarnationPosition : incarnationPosition+2])
+			inc = binary.LittleEndian.Uint64(b[incarnationPosition+2 : incarnationPosition+2+8])
+			notDefaultIncarnation[id] = inc
+			incarnationPosition += (2 + common.IncarnationLength)
+		}
+	}
 
 	elementStart := storageEnodingStartElem + 2+uint32(dictLen)*common.HashLength + 2+ uint32(dictKeyLen)*common.HashLength
 	key := make([]byte, common.HashLength*2+common.IncarnationLength)
 
 	lenOfAddHash:=uint32(getNumOfBytesByLen(len(addMap)))
 	lenOfKey:=uint32(getNumOfBytesByLen(len(keyMap)))
-	lastValLen:=0
+	//lastValLen:=0
 	for i := uint32(0); i < numOfElements; i++ {
 		//copy addrHash
 		elem:=elementStart+i*(lenOfAddHash+lenOfKey)
@@ -612,28 +618,72 @@ func DecodeStorageDict2(b []byte) (*ChangeSet, error) {
 			readFromMap(keyMap, b[elem+lenOfAddHash:elem+lenOfAddHash+lenOfKey]).Bytes(),
 		)
 		//set incarnation
-		//if inc, ok = notDefaultIncarnation[i]; ok {
-		//	binary.LittleEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], inc)
-		//} else {
-		//	binary.LittleEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], DefaultIncarnation)
-		//}
-		//valLen:=b[lenOfValsPos+4+uint32(i)]
-
-
-		h.Changes[i].Key = common.CopyBytes(key)
-
-		switch {
-		case i<uint32(numOfUint8):
-			h.Changes[i].Value =common.CopyBytes(b[lastValLen:i])
-		case i<uint32(numOfUint16):
-		case i<uint32(numOfUint32):
-
+		if inc, ok = notDefaultIncarnation[i]; ok {
+			binary.LittleEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], inc)
+		} else {
+			binary.LittleEndian.PutUint64(key[common.HashLength:common.HashLength+common.IncarnationLength], DefaultIncarnation)
 		}
 
-		//h.Changes[i].Value =common.CopyBytes(b[valPos:valPos+uint32(valLen)])
-		//valPos+=uint32(valLen)
+		h.Changes[i].Key = common.CopyBytes(key)
+		h.Changes[i].Value =findVal(b[lenOfValsPos:valuesPos], b[valuesPos:], i, numOfUint8, numOfUint16, numOfUint32)
 	}
-	_=valuesPos
-
 	return h, nil
+}
+
+func findVal(lenOfVals []byte, values []byte, i uint32,  numOfUint8, numOfUint16, numOfUint32 int) []byte {
+	lenOfValStart:=uint32(0)
+	lenOfValEnd:=uint32(0)
+	switch {
+	case i < uint32(numOfUint8):
+		lenOfValEnd=uint32(lenOfVals[i])
+		if i>0 {
+			lenOfValStart=uint32(lenOfVals[i-1])
+		}
+		return common.CopyBytes(values[lenOfValStart:lenOfValEnd])
+	case i < uint32(numOfUint8)+uint32(numOfUint16):
+		one:=uint32(numOfUint8)+(i-uint32(numOfUint8))*2
+		lenOfValEnd=uint32(binary.LittleEndian.Uint16(lenOfVals[one:one+2]))
+		if i-1<uint32(numOfUint8) {
+			lenOfValStart=uint32(lenOfVals[i-1])
+		} else {
+			one=uint32(numOfUint8)+(i-1-uint32(numOfUint8))*2
+			lenOfValStart=uint32(binary.LittleEndian.Uint16(lenOfVals[one:one+2]))
+		}
+		return common.CopyBytes(values[lenOfValStart:lenOfValEnd])
+	case i < uint32(numOfUint8)+uint32(numOfUint16)+uint32(numOfUint32):
+		one:=uint32(numOfUint8)+uint32(numOfUint16)*2+(i-uint32(numOfUint8)-uint32(numOfUint16))*4
+		lenOfValEnd=uint32(binary.LittleEndian.Uint32(lenOfVals[one:one+4]))
+		if i-1<uint32(numOfUint8) + uint32(numOfUint16) {
+			lenOfValStart=uint32(lenOfVals[i-1])
+		} else {
+			one=uint32(numOfUint8)+(i-1-uint32(numOfUint8))*2
+			lenOfValStart=uint32(binary.LittleEndian.Uint16(lenOfVals[one:one+2]))
+		}
+		return common.CopyBytes(values[lenOfValStart:lenOfValEnd])
+	default:
+		panic("findval err")
+	}
+}
+
+func calculateIncarnationPos(b []byte, numOfUint8, numOfUint16, numOfUint32 int) int {
+	fmt.Println(b)
+	res :=0
+	end:=0
+	switch {
+	case numOfUint32>0:
+		end=numOfUint8+numOfUint16*2+numOfUint32*4
+		res= int(binary.LittleEndian.Uint32(b[end-4:end]))
+	case numOfUint16>0:
+		end=numOfUint8+numOfUint16*2
+		res= int(binary.LittleEndian.Uint16(b[end-2:end]))
+	case numOfUint8>0:
+		end=numOfUint8
+		res= int(b[end-1])
+	default:
+		return 0
+	}
+	fmt.Println("calculateIncarnationPos", end)
+	fmt.Println("calculateIncarnationPos", res)
+	fmt.Println("calculateIncarnationPos", b[res])
+	return res
 }
