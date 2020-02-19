@@ -16,6 +16,7 @@ var (
 	//value - list of block where it's changed
 	AccountsHistoryBucket = []byte("hAT")
 	AccountsHistoryIndexBucket = []byte("hATi")
+	AccountsHistoryIndexBucket2 = []byte("hATi2")
 
 	//key - address hash + incarnation + storage key hash
 	//value - storage value(common.hash)
@@ -29,6 +30,7 @@ var (
 	//value - list of block where it's changed
 	StorageHistoryBucket = []byte("hST")
 	StorageHistoryIndexBucket = []byte("hSTi")
+	StorageHistoryIndexBucket2 = []byte("hSTi2")
 
 	//key - contract code hash
 	//value - contract code

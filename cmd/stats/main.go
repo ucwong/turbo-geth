@@ -20,7 +20,8 @@ import (
 )
 
 func main() {
-	migrateIndexes()
+	//migrateAccountIndexes()
+	//migrateStorageIndexes()
 	migragteCompressionOfBlocks()
 	//copyCodeContracts()
 	//checkCompressionOfBlocks()
@@ -1058,8 +1059,82 @@ func migragteCompressionOfBlocks()  {
 
 		i:=0
 		batchSize:=1000
-		tuples:=make([][]byte,0, 3500)
-		err = db.Walk(dbutils.BlockBodyPrefix, []byte{}, 0, func(k, v []byte) (b bool, e error) {
+	ts:=time.Now()
+	fmt.Println("storage index migration")
+	tuples:=make([][]byte, 0, 11000)
+	numOfBatch := 0
+
+	j:=uint64(0)
+	var k, v []byte
+	var done bool
+	for !done {
+		numOfBatch = 0
+		err := db.DB().Update(func(tx *bolt.Tx) error {
+			var blocksBucket *bolt.Bucket = tx.Bucket(dbutils.BlockBodyPrefix)
+			var blocksBucket2 *bolt.Bucket = tx.Bucket(dbutils.BlockBodyPrefixCompressed)
+			c := blocksBucket.Cursor()
+
+			if k == nil {
+				k, v = c.First()
+			} else {
+				k, v = c.Seek(k)
+				k, v = c.Next()
+			}
+
+
+			for ; k != nil; k, v = c.Next() {
+				j++
+				block:=binary.BigEndian.Uint64(k[0:8])
+				fmt.Println(block)
+
+				var rlpBuf bytes.Buffer
+				zrlp := gzip.NewWriter(&rlpBuf)
+				_, err = zrlp.Write(v)
+				if err!=nil {
+					log.Fatal(err)
+				}
+				zrlp.Close()
+
+				tuples=append(tuples, k, rlpBuf.Bytes())
+
+				if numOfBatch > 10000 {
+					commTime := time.Now()
+
+					fmt.Println("Start update")
+					if len(tuples) > 0 {
+						//err = blocksBucket2.MultiPut(tuples...)
+						//if err!=nil {
+						//	log.Fatal(err, k)
+						//}
+						tuples=make([][]byte, 0,11000)
+					}
+					fmt.Println("Commit", j, time.Now().Sub(commTime), time.Now().Sub(ts))
+					break
+				} else {
+					numOfBatch++
+				}
+
+			}
+
+			if k == nil {
+				done = true
+				if len(tuples)>0 {
+					err = blocksBucket.MultiPut(tuples...)
+					if err!=nil {
+						log.Fatal(err, k)
+					}
+				}
+			}
+			k = common.CopyBytes(k)
+			return nil
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	fmt.Println("Storage migration success")
+
+	err = db.Walk(dbutils.BlockBodyPrefix, []byte{}, 0, func(k, v []byte) (b bool, e error) {
 			block:=binary.BigEndian.Uint64(k[0:8])
 			fmt.Println(block)
 
@@ -1097,101 +1172,191 @@ func migragteCompressionOfBlocks()  {
 		}
 }
 
-func migrateIndexes()  {
+func migrateAccountIndexes()  {
 	db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	ts:=time.Now()
 	fmt.Println("AccountsHistoryIndexBucket migration")
-	i:=0
-	tuples:=make([][]byte, 0, 3500)
-	err = db.Walk(dbutils.AccountsHistoryIndexBucket, []byte{}, 0, func(k, v []byte) (b bool, e error) {
-		defer func() {
-			err:=recover()
-			if err!=nil {
-				b=true
-				e=nil
-			}
-		}()
-		vals,err:=ethdb.WrapHistoryIndex(v).Decode()
-		if err!=nil {
-			return true, nil
-		}
-		hi:=dbutils.NewHistoryIndex()
-		for i:=range vals {
-			hi.Append(vals[i])
-		}
+	tuples:=make([][]byte, 0, 11000)
 
-		tuples=append(tuples, dbutils.AccountsHistoryIndexBucket, k, *hi)
-		if i>3000 {
-			_, err = db.MultiPut(tuples...)
-			if err!=nil {
-				return false,err
-			}
-			i=0
-		} else {
-			i++
-		}
 
-		return true, nil
-	})
-	if err != nil {
-		log.Fatal("err", err)
-	}
-	if len(tuples)>0 {
-		_, err = db.MultiPut(tuples...)
-		if err!=nil {
+
+	numOfBatch := 0
+
+	j:=uint64(0)
+	var k, v []byte
+	var done bool
+	for !done {
+		numOfBatch = 0
+		err := db.DB().Update(func(tx *bolt.Tx) error {
+			var accIndex *bolt.Bucket = tx.Bucket(dbutils.AccountsHistoryIndexBucket)
+			c := accIndex.Cursor()
+
+			if k == nil {
+				k, v = c.First()
+			} else {
+				k, v = c.Seek(k)
+				k, v = c.Next()
+			}
+
+			decodeWithoutPanic:= func(v []byte) (res []byte){
+				defer func() {
+					err:=recover()
+					if err!=nil {
+						res = v
+					}
+				}()
+
+				vals,err:=ethdb.WrapHistoryIndex(v).Decode()
+				if err!=nil {
+					panic(err)
+				}
+				hi:=dbutils.NewHistoryIndex()
+				for i:=range vals {
+					hi.Append(vals[i])
+				}
+
+				return *hi
+			}
+
+			for ; k != nil; k, v = c.Next() {
+				j++
+				nw:=decodeWithoutPanic(v)
+				tuples=append(tuples, k, nw)
+
+				if numOfBatch > 10000 {
+					commTime := time.Now()
+
+					fmt.Println("Start update")
+					if len(tuples) > 0 {
+						err = accIndex.MultiPut(tuples...)
+						if err!=nil {
+							log.Fatal(err, k)
+						}
+						tuples=make([][]byte, 0, 11000)
+					}
+					fmt.Println("Commit", j, time.Now().Sub(commTime), time.Now().Sub(ts))
+					if err != nil {
+						log.Fatal("err on update", err, ts)
+					}
+					break
+				} else {
+					numOfBatch++
+				}
+
+			}
+
+			if k == nil {
+				done = true
+				if len(tuples)>0 {
+					err = accIndex.MultiPut(tuples...)
+					if err!=nil {
+						log.Fatal(err, k)
+					}
+				}
+			}
+			k = common.CopyBytes(k)
+			return nil
+		})
+		if err != nil {
 			log.Fatal(err)
 		}
 	}
 	fmt.Println("Account migration success")
-	fmt.Println("StorageHistoryIndexBucket migration")
+}
 
-	tuples = make([][]byte, 0, 3500)
-	err = db.Walk(dbutils.StorageHistoryIndexBucket, []byte{}, 0, func(k, v []byte) (b bool, e error) {
-		defer func() {
-			err:=recover()
-			if err!=nil {
-				b=true
-				e=nil
-			}
-			return
-		}()
 
-		vals,err:=ethdb.WrapHistoryIndex(v).Decode()
-		if err!=nil {
-			return false,err
-		}
-		hi:=dbutils.NewHistoryIndex()
-		for i:=range vals {
-			hi.Append(vals[i])
-		}
-
-		tuples=append(tuples, dbutils.StorageHistoryIndexBucket,k, *hi)
-		if i>3000 {
-			_, err = db.MultiPut(tuples...)
-			if err!=nil {
-				return false,err
-			}
-			i=0
-		} else {
-			i++
-		}
-
-		return true, nil
-	})
+func migrateStorageIndexes()  {
+	db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
 	if err != nil {
 		log.Fatal(err)
 	}
-	if len(tuples)>0 {
-		_, err = db.MultiPut(tuples...)
-		if err!=nil {
+	ts:=time.Now()
+	fmt.Println("storage index migration")
+	tuples:=make([][]byte, 0, 11000)
+
+
+
+	numOfBatch := 0
+
+	j:=uint64(0)
+	var k, v []byte
+	var done bool
+	for !done {
+		numOfBatch = 0
+		err := db.DB().Update(func(tx *bolt.Tx) error {
+			var storageIndex *bolt.Bucket = tx.Bucket(dbutils.StorageHistoryIndexBucket)
+			c := storageIndex.Cursor()
+
+			if k == nil {
+				k, v = c.First()
+			} else {
+				k, v = c.Seek(k)
+				k, v = c.Next()
+			}
+
+			decodeWithoutPanic:= func(v []byte) (res []byte){
+				defer func() {
+					err:=recover()
+					if err!=nil {
+						res = v
+					}
+				}()
+
+				vals,err:=ethdb.WrapHistoryIndex(v).Decode()
+				if err!=nil {
+					panic(err)
+				}
+				hi:=dbutils.NewHistoryIndex()
+				for i:=range vals {
+					hi.Append(vals[i])
+				}
+
+				return *hi
+			}
+
+			for ; k != nil; k, v = c.Next() {
+				j++
+				nw:=decodeWithoutPanic(v)
+				tuples=append(tuples, k, nw)
+
+				if numOfBatch > 10000 {
+					commTime := time.Now()
+
+					fmt.Println("Start update")
+					if len(tuples) > 0 {
+						err = storageIndex.MultiPut(tuples...)
+						if err!=nil {
+							log.Fatal(err, k)
+						}
+						tuples=make([][]byte, 0,11000)
+					}
+					fmt.Println("Commit", j, time.Now().Sub(commTime), time.Now().Sub(ts))
+					break
+				} else {
+					numOfBatch++
+				}
+
+			}
+
+			if k == nil {
+				done = true
+				if len(tuples)>0 {
+					err = storageIndex.MultiPut(tuples...)
+					if err!=nil {
+						log.Fatal(err, k)
+					}
+				}
+			}
+			k = common.CopyBytes(k)
+			return nil
+		})
+		if err != nil {
 			log.Fatal(err)
 		}
 	}
-
-
 	fmt.Println("Storage migration success")
 
 }
