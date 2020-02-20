@@ -33,19 +33,17 @@ func (hi *HistoryIndexBytes) Decode() ([]uint64, error) {
 	if len(*hi) <= LenBytes*2 {
 		return []uint64{}, nil
 	}
+
 	numOfElements:=binary.LittleEndian.Uint32((*hi)[0:LenBytes])
 	numOfUint32Elements:=binary.LittleEndian.Uint32((*hi)[LenBytes:2*LenBytes])
-	fmt.Println("hi", *hi)
-	fmt.Println("numOfElements", numOfElements, numOfUint32Elements)
 	decoded := make([]uint64, numOfElements)
+
 	for i :=uint32(0);i<numOfElements; i++ {
 		if i<numOfUint32Elements {
 			decoded[i] = uint64(binary.LittleEndian.Uint32((*hi)[LenBytes*2+i*4 : LenBytes*2+i*4+4]))
 		} else {
 			decoded[i] = binary.LittleEndian.Uint64((*hi)[LenBytes*2+numOfUint32Elements*4 + i*ItemLen : LenBytes*2+i*ItemLen+ItemLen])
 		}
-		fmt.Println(i, decoded[i])
-
 	}
 	return decoded, nil
 }
@@ -84,8 +82,7 @@ func (hi *HistoryIndexBytes) Remove(v uint64) *HistoryIndexBytes {
 	var itemLen = uint32(8)
 Loop:
 	for i := numOfElements; i > 0; i-- {
-
-		if i-numOfUint32Elements > 0 {
+		if i > numOfUint32Elements {
 			elemEnd = LenBytes*2 + numOfUint32Elements*4+ (i-numOfUint32Elements)*8
 			currentElement = binary.LittleEndian.Uint64((*hi)[elemEnd-8 : elemEnd])
 			itemLen=8
@@ -94,7 +91,7 @@ Loop:
 			currentElement = uint64(binary.LittleEndian.Uint32((*hi)[elemEnd-4 : elemEnd]))
 			itemLen=4
 		}
-		fmt.Println("currentElement", currentElement)
+
 		switch {
 		case currentElement == v:
 			*hi = append((*hi)[:elemEnd-itemLen], (*hi)[elemEnd:]...)
@@ -103,7 +100,6 @@ Loop:
 				numOfUint32Elements--
 			}
 		case currentElement < v:
-			fmt.Println("break")
 			break Loop
 		default:
 			continue
@@ -152,7 +148,7 @@ func (hi *HistoryIndexBytes) Search(v uint64) (uint64, bool) {
 			currentElement = uint64(binary.LittleEndian.Uint32((*hi)[elemEnd-4 : elemEnd]))
 			itemLen=4
 		}
-		//currentElement = binary.LittleEndian.Uint64((*hi)[elemEnd-ItemLen : elemEnd])
+
 		switch {
 		case currentElement == v:
 			return v, true
