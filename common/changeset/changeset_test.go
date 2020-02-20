@@ -14,7 +14,7 @@ import (
 
 const (
 	numOfElements      = 2
-	defaultIncarnation = 1
+	defaultIncarnation = ^uint64(1)
 )
 
 func TestEncodingStorageWithoutNotDefaultIncarnation(t *testing.T) {

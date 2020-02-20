@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/csv"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ledgerwatch/bolt"
 	"github.com/ledgerwatch/turbo-geth/common"
 	"github.com/ledgerwatch/turbo-geth/common/changeset"
@@ -22,7 +23,8 @@ import (
 func main() {
 	//migrateAccountIndexes()
 	//migrateStorageIndexes()
-	migragteCompressionOfBlocks()
+	storageFormatDiff3()
+	//migragteCompressionOfBlocks()
 	//copyCodeContracts()
 	//checkCompressionOfBlocks()
 	//testMigrate()
@@ -681,6 +683,72 @@ func storageFormatDiff2() {
 	fmt.Println("Dict errors", expDictErrors)
 
 }
+func storageFormatDiff3() {
+	var currentSize, expSizeDict uint64
+	var  expDictErrors uint64
+	db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
+	if err != nil {
+		log.Fatal(err)
+	}
+	mp:=make(map[uint64]uint64,0)
+	defer spew.Dump(mp)
+	errs:=0
+	err = db.Walk(dbutils.ChangeSetBucket, []byte{}, 0, func(k, v []byte) (b bool, e error) {
+		ts, bucket := dbutils.DecodeTimestamp(k)
+		fmt.Println(ts, string(bucket), errs)
+
+		switch {
+		case bytes.Equal(dbutils.AccountsHistoryBucket, bucket):
+			return true, nil
+		case bytes.Equal(dbutils.StorageHistoryBucket, bucket):
+			cs, err := dbutils.DecodeChangeSet(v)
+			if err != nil {
+				fmt.Println(ts, "dbutils.DecodeChangeSet", string(bucket), err)
+				errs++
+				return false, err
+			}
+
+			cs2 := &changeset.ChangeSet{
+				Changes: make([]changeset.Change, len(cs.Changes)),
+			}
+			for i := range cs.Changes {
+				mp[binary.LittleEndian.Uint64(cs.Changes[i].Key[common.HashLength:common.HashLength+common.IncarnationLength])]++
+				cs2.Changes[i] = changeset.Change{
+					Key:   cs.Changes[i].Key,
+					Value: cs.Changes[i].Value,
+				}
+			}
+			encDict, err := changeset.EncodeStorageDict3(cs2)
+			if err != nil {
+				fmt.Println(ts, "EncodeStorageDict3", string(bucket), err)
+				return false, err
+			}
+
+			csTestDict, err := changeset.DecodeStorageDict3(encDict)
+			if err != nil {
+				fmt.Println(v)
+				fmt.Println(ts, "DecodeStorageDict3", string(bucket), err)
+				return false, err
+			}
+			if reflect.DeepEqual(csTestDict, cs) {
+				fmt.Println("DICT not equal", ts)
+				expDictErrors++
+			}
+
+			currentSize += uint64(len(v))
+			expSizeDict += uint64(len(encDict))
+		default:
+			fmt.Println(string(k), "------------------------------")
+		}
+		return true, nil
+	})
+	if err != nil {
+		log.Println("err", err)
+	}
+	fmt.Println("Current size", currentSize)
+	fmt.Println("Dict size", expSizeDict)
+	fmt.Println("Dict errors", expDictErrors)
+}
 
 func collectChangesetCsv() {
 	var contractsLength, addressesLength uint64
@@ -1071,7 +1139,7 @@ func migragteCompressionOfBlocks()  {
 		numOfBatch = 0
 		err := db.DB().Update(func(tx *bolt.Tx) error {
 			var blocksBucket *bolt.Bucket = tx.Bucket(dbutils.BlockBodyPrefix)
-			var blocksBucket2 *bolt.Bucket = tx.Bucket(dbutils.BlockBodyPrefixCompressed)
+			//var blocksBucket2 *bolt.Bucket = tx.Bucket(dbutils.BlockBodyPrefixCompressed)
 			c := blocksBucket.Cursor()
 
 			if k == nil {

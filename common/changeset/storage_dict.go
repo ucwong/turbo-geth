@@ -631,6 +631,7 @@ func DecodeStorageDict2(b []byte) (*ChangeSet, error) {
 }
 
 func findVal(lenOfVals []byte, values []byte, i uint32,  numOfUint8, numOfUint16, numOfUint32 int) []byte {
+	fmt.Println(i)
 	lenOfValStart:=uint32(0)
 	lenOfValEnd:=uint32(0)
 	switch {
@@ -647,7 +648,7 @@ func findVal(lenOfVals []byte, values []byte, i uint32,  numOfUint8, numOfUint16
 			lenOfValStart=uint32(lenOfVals[i-1])
 		} else {
 			one=uint32(numOfUint8)+(i-1-uint32(numOfUint8))*2
-			lenOfValStart=uint32(binary.LittleEndian.Uint16(lenOfVals[one:one+2]))
+			lenOfValStart=uint32(binary.LittleEndian.Uint16(lenOfVals[one-2:one]))
 		}
 		return common.CopyBytes(values[lenOfValStart:lenOfValEnd])
 	case i < uint32(numOfUint8)+uint32(numOfUint16)+uint32(numOfUint32):
