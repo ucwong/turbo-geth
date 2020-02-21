@@ -699,6 +699,72 @@ func storageFormatDiff2() {
 func storageFormatDiff3() {
 	var currentSize, expSizeDict uint64
 	var  expDictErrors uint64
+	db, err := ethdb.NewBoltDatabase("/home/b00ris/chaindata")
+	if err != nil {
+		log.Fatal(err)
+	}
+	mp:=make(map[uint64]uint64,0)
+	defer spew.Dump(mp)
+	errs:=0
+	err = db.Walk(dbutils.ChangeSetBucket, []byte{}, 0, func(k, v []byte) (b bool, e error) {
+		ts, bucket := dbutils.DecodeTimestamp(k)
+		fmt.Println(ts, string(bucket), errs)
+
+		switch {
+		case bytes.Equal(dbutils.AccountsHistoryBucket, bucket):
+			return true, nil
+		case bytes.Equal(dbutils.StorageHistoryBucket, bucket):
+			cs, err := dbutils.DecodeChangeSet(v)
+			if err != nil {
+				fmt.Println(ts, "dbutils.DecodeChangeSet", string(bucket), err)
+				errs++
+				return false, err
+			}
+
+			cs2 := &changeset.ChangeSet{
+				Changes: make([]changeset.Change, len(cs.Changes)),
+			}
+			for i := range cs.Changes {
+				mp[binary.LittleEndian.Uint64(cs.Changes[i].Key[common.HashLength:common.HashLength+common.IncarnationLength])]++
+				cs2.Changes[i] = changeset.Change{
+					Key:   cs.Changes[i].Key,
+					Value: cs.Changes[i].Value,
+				}
+			}
+			encDict, err := changeset.EncodeStorageDict3(cs2)
+			if err != nil {
+				fmt.Println(ts, "EncodeStorageDict3", string(bucket), err)
+				return false, err
+			}
+
+			csTestDict, err := changeset.DecodeStorageDict3(encDict)
+			if err != nil {
+				fmt.Println(v)
+				fmt.Println(ts, "DecodeStorageDict3", string(bucket), err)
+				return false, err
+			}
+			if reflect.DeepEqual(csTestDict, cs) {
+				fmt.Println("DICT not equal", ts)
+				expDictErrors++
+			}
+
+			currentSize += uint64(len(v))
+			expSizeDict += uint64(len(encDict))
+		default:
+			fmt.Println(string(k), "------------------------------")
+		}
+		return true, nil
+	})
+	if err != nil {
+		log.Println("err", err)
+	}
+	fmt.Println("Current size", currentSize)
+	fmt.Println("Dict size", expSizeDict)
+	fmt.Println("Dict errors", expDictErrors)
+}
+func calculateSizeOfAccounts() {
+	var currentSize, expSizeDict uint64
+	var  expDictErrors uint64
 	db, err := ethdb.NewBoltDatabase("/home/b00ris/	chaindata")
 	if err != nil {
 		log.Fatal(err)
@@ -1468,6 +1534,15 @@ func copyCodeContracts()  {
 }
 
 /*
+
+Current size 75989100632
+Dict size 43257146833
+Dict errors 0
+(map[uint64]uint64) (len=2) {
+ (uint64) 18374686479671623679: (uint64) 935166687,
+ (uint64) 18302628885633695743: (uint64) 12
+}
+
 Current size 75989100632
 Exp size 65702267087
 Exp errors 0
