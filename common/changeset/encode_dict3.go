@@ -35,26 +35,26 @@ func EncodeStorageDict3(s *ChangeSet) ([]byte, error) {
 		return nil, err
 	}
 
-	fmt.Println("storageKeys", 4+2+len(addrHashList))
+	//fmt.Println("storageKeys", 4+2+len(addrHashList))
 	storageKeys, valuesBytes, lengthOfValuesBytes:=computeStorageKeys3(s,addrMap)
 	_, err = buf.Write(storageKeys)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("lengthOfValuesBytes",  4+2+len(addrHashList)+len(storageKeys))
+	//fmt.Println("lengthOfValuesBytes",  4+2+len(addrHashList)+len(storageKeys))
 	_, err = buf.Write(lengthOfValuesBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("valuesBytes",  4+2+len(addrHashList)+len(storageKeys)+len(lengthOfValuesBytes))
+	//fmt.Println("valuesBytes",  4+2+len(addrHashList)+len(storageKeys)+len(lengthOfValuesBytes))
 	_, err = buf.Write(valuesBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("nonDefaultIncarnationsList",  4+2+len(addrHashList)+len(storageKeys)+len(lengthOfValuesBytes)+len(valuesBytes))
+	//fmt.Println("nonDefaultIncarnationsList",  4+2+len(addrHashList)+len(storageKeys)+len(lengthOfValuesBytes)+len(valuesBytes))
 	if len(nonDefaultIncarnationsList)>0 {
 		fmt.Println("nonDefaultIncarnationsList", len(nonDefaultIncarnationsList))
 	}
@@ -132,11 +132,11 @@ func computeStorageKeys3(s *ChangeSet, addrHashes map[common.Hash]uint16) ([]byt
 		lengthOfValues+=uint32(len(s.Changes[i].Value))
 		switch {
 		case lengthOfValues<=255:
-			fmt.Println("8", numOfUint8, lengthOfValues)
+			//fmt.Println("8", numOfUint8, lengthOfValues)
 			numOfUint8++
 			lengthes=append(lengthes, uint8(lengthOfValues))
 		case lengthOfValues<=65535:
-			fmt.Println("16",numOfUint16, lengthOfValues)
+			//fmt.Println("16",numOfUint16, lengthOfValues)
 			numOfUint16++
 			uint16b:=make([]byte, 2)
 			binary.BigEndian.PutUint16(uint16b, uint16(lengthOfValues))
@@ -162,8 +162,8 @@ func computeStorageKeys3(s *ChangeSet, addrHashes map[common.Hash]uint16) ([]byt
 
 
 func DecodeStorageDict3(b []byte) (*ChangeSet, error) {
-	fmt.Println()
-	fmt.Println("decode")
+	//fmt.Println()
+	//fmt.Println("decode")
 	h := NewStorageChangeSet()
 	if len(b) == 0 {
 		h.Changes = make([]Change, 0)
@@ -194,18 +194,18 @@ func DecodeStorageDict3(b []byte) (*ChangeSet, error) {
 	numOfUint8:=int(binary.BigEndian.Uint16(b[lenOfValsPos:lenOfValsPos+2]))
 	numOfUint16:=int(binary.BigEndian.Uint16(b[lenOfValsPos+2:lenOfValsPos+4]))
 	numOfUint32:=int(binary.BigEndian.Uint16(b[lenOfValsPos+4:lenOfValsPos+6]))
-	fmt.Println("lengthOfValuesBytes",b[lenOfValsPos:lenOfValsPos+6])
-	fmt.Println("lengthOfValuesBytes", lenOfValsPos)
+	//fmt.Println("lengthOfValuesBytes",b[lenOfValsPos:lenOfValsPos+6])
+	//fmt.Println("lengthOfValuesBytes", lenOfValsPos)
 	lenOfValsPos=lenOfValsPos+6
 	valuesPos:=lenOfValsPos+uint32(numOfUint8) + uint32(numOfUint16*2) + uint32(numOfUint32*4)
-	fmt.Println("valuesPos", valuesPos)
+	//fmt.Println("valuesPos", valuesPos)
 
 	//parse not default incarnations
 
 	//????????
-	fmt.Println(numOfUint8, numOfUint16, numOfUint32)
+	//fmt.Println(numOfUint8, numOfUint16, numOfUint32)
 	incarnationPosition:=lenOfValsPos+uint32(calculateIncarnationPos3(b[lenOfValsPos:], numOfUint8, numOfUint16, numOfUint32))
-	fmt.Println("incarnationPosition", incarnationPosition)
+	//fmt.Println("incarnationPosition", incarnationPosition)
 	incarnationsLength := len(b[incarnationPosition:])
 	notDefaultIncarnation := make(map[uint32]uint64, 0)
 	var (
@@ -263,22 +263,22 @@ func calculateIncarnationPos3(b []byte, numOfUint8, numOfUint16, numOfUint32 int
 	end:=0
 	switch {
 	case numOfUint32>0:
-		fmt.Println("32")
+		//fmt.Println("32")
 		end=numOfUint8+numOfUint16*2+numOfUint32*4
 		res= int(binary.BigEndian.Uint32(b[end-4:end])) + end
 	case numOfUint16>0:
-		fmt.Println("16")
+		//fmt.Println("16")
 		end=numOfUint8+numOfUint16*2
 		res= int(binary.BigEndian.Uint16(b[end-2:end])) +end
 	case numOfUint8>0:
-		fmt.Println("8")
+		//fmt.Println("8")
 		end=numOfUint8
 		res= int(b[end-1]) + end
 	default:
 		return 0
 	}
-	fmt.Println("numOfUint16",numOfUint16)
-	fmt.Println("end", end)
-	fmt.Println("res", res)
+	//fmt.Println("numOfUint16",numOfUint16)
+	//fmt.Println("end", end)
+	//fmt.Println("res", res)
 	return res
 }

@@ -21,6 +21,7 @@ import (
 )
 
 func main() {
+	//testMigrate()
 	//migrateAccountIndexes()
 	//migrateStorageIndexes()
 	storageFormatDiff3()
@@ -39,38 +40,46 @@ func testMigrate() {
 		log.Fatal(err)
 	}
 
-	//err=db.DeleteBucket(dbutils.AccountsHistoryIndexBucket)
-	//if err!=nil {
-	//	log.Fatal("delete AccountsHistoryIndexBucket", err)
-	//}
-	//err = db.DeleteBucket(dbutils.StorageHistoryIndexBucket)
-	//if err!=nil {
-	//	log.Fatal("delete StorageHistoryIndexBucket", err)
-	//}
 
-	//bn:=uint64(9254301)
 	numOfBatch := 0
-	accIndex := make(map[string]*ethdb.HistoryIndexBytes, 0)
-	storageIndex := make(map[string]*ethdb.HistoryIndexBytes, 0)
-	accChangeset := make(map[uint64][]byte, 0)
-	storageChangeset := make(map[uint64][]byte, 0)
+	//accChangeset := make(map[uint64][]byte, 0)
+	//storageChangeset := make(map[uint64][]byte, 0)
 
 	var k, v []byte
 	var done bool
 	for !done {
 		numOfBatch = 0
+		//accIndex = make(map[string]*ethdb.HistoryIndexBytes, 0)
+		//storageIndex = make(map[string]*ethdb.HistoryIndexBytes, 0)
+
 		err := db.DB().Update(func(tx *bolt.Tx) error {
 			var csBucket *bolt.Bucket = tx.Bucket(dbutils.ChangeSetBucket)
-			c := csBucket.Cursor()
-
-			if k == nil {
-				k, v = c.First()
-			} else {
-				k, v = c.Seek(k)
-				k, v = c.Next()
+			accIndexBucket, err := tx.CreateBucketIfNotExists(dbutils.AccountsHistoryIndexBucket, false)
+			if err != nil {
+				return err
+			}
+			storageIndexBucket, err := tx.CreateBucketIfNotExists(dbutils.StorageHistoryIndexBucket, false)
+			if err != nil {
+				return err
 			}
 
-			for ; k != nil; k, v = c.Next() {
+
+			accIndex := make(map[string]*ethdb.HistoryIndexBytes, 0)
+			storageIndex := make(map[string]*ethdb.HistoryIndexBytes, 0)
+
+			cursor := csBucket.Cursor()
+
+			if k == nil {
+				fmt.Println("first")
+				k, v = cursor.First()
+			} else {
+				fmt.Println("Seek")
+				k, v = cursor.Seek(k)
+				k, v = cursor.Next()
+			}
+			fmt.Println("for",)
+
+			for ; k != nil;  {
 
 				ts, bucket := dbutils.DecodeTimestamp(k)
 				fmt.Println(ts, string(bucket))
@@ -80,129 +89,133 @@ func testMigrate() {
 					fmt.Println(ts, string(bucket), err)
 					return err
 				}
-
+				fmt.Println("switch")
 				switch {
 				case bytes.Equal(dbutils.AccountsHistoryBucket, bucket):
 					for _, v := range cs.Changes {
 						index, ok := accIndex[string(v.Key)]
 						if !ok {
-							indexBytes, err := db.Get(dbutils.AccountsHistoryIndexBucket, v.Key)
-							if err != nil && err != ethdb.ErrKeyNotFound {
-								log.Fatal(err)
-							}
+							indexBytes, _ := db.Get(dbutils.AccountsHistoryIndexBucket, v.Key)
 							index = ethdb.WrapHistoryIndex(indexBytes)
 						}
 						index.Append(ts)
 						accIndex[string(v.Key)] = index
 					}
-					vCopy := make([]byte, len(v))
-					copy(vCopy, v)
-					accChangeset[ts] = vCopy
+					//vCopy := make([]byte, len(v))
+					//copy(vCopy, v)
+					//accChangeset[ts] = vCopy
 				case bytes.Equal(dbutils.StorageHistoryBucket, bucket):
-					cs2 := &changeset.ChangeSet{
-						Changes: make([]changeset.Change, len(cs.Changes)),
-					}
-					for i, v := range cs.Changes {
-						cs2.Changes[i] = changeset.Change{
-							Key:   cs.Changes[i].Key,
-							Value: cs.Changes[i].Value,
-						}
+					//cs2 := &changeset.ChangeSet{
+					//	Changes: make([]changeset.Change, len(cs.Changes)),
+					//}
+					for _, v := range cs.Changes {
+						//cs2.Changes[i] = changeset.Change{
+						//	Key:   cs.Changes[i].Key,
+						//	Value: cs.Changes[i].Value,
+						//}
 
 						//fill storage index
 						index, ok := storageIndex[string(v.Key)]
 						if !ok {
-							indexBytes, err := db.Get(dbutils.StorageHistoryIndexBucket, v.Key)
-							if err != nil && err != ethdb.ErrKeyNotFound {
-								return err
-							}
+							indexBytes,_:=db.Get(dbutils.StorageHistoryIndexBucket, v.Key)
+							//indexBytes, _ := storageIndexBucket.Get(v.Key)
 							index = ethdb.WrapHistoryIndex(indexBytes)
 						}
 						index.Append(ts)
 						storageIndex[string(v.Key)] = index
 					}
 
-					expCsEnc2, err := changeset.EncodeStorageDict(cs2)
-					if err != nil {
-						fmt.Println(ts, string(bucket), err)
-						return err
-					}
-					storageChangeset[ts] = expCsEnc2
+					//expCsEnc2, err := changeset.EncodeStorageDict(cs2)
+					//if err != nil {
+					//	fmt.Println(ts, string(bucket), err)
+					//	return err
+					//}
+					//storageChangeset[ts] = expCsEnc2
 
 				default:
 					fmt.Println(string(k), "------------------------------")
 				}
+				fmt.Println("next")
 
-				if numOfBatch > 100 {
+				k, v = cursor.Next()
+				if numOfBatch > 10000 || k==nil {
 					commTime := time.Now()
 
 					fmt.Println("Start update")
 					if len(accIndex) > 0 {
-						accIndexBucket, err := tx.CreateBucketIfNotExists(dbutils.AccountsHistoryIndexBucket, false)
+						tuples:=make([][]byte, 0, len(accIndex))
+						for i := range accIndex {
+							tuples=append(tuples, []byte(i),*accIndex[i])
+							//err = accIndexBucket.Put([]byte(i),*accIndex[i])
+							//if err!=nil {
+							//	return err
+							//}
+						}
+						err=accIndexBucket.MultiPut(tuples...)
 						if err != nil {
 							return err
-						}
-
-						for i := range accIndex {
-							err = accIndexBucket.Put([]byte(i), *accIndex[i])
-							if err != nil {
-								return err
-							}
 						}
 					}
 					if len(storageIndex) > 0 {
-						storageIndexBucket, err := tx.CreateBucketIfNotExists(dbutils.StorageHistoryIndexBucket, false)
-						if err != nil {
-							return err
-						}
-
+						tuples:=make([][]byte, 0, len(storageIndex))
 						for i := range storageIndex {
-							err = storageIndexBucket.Put([]byte(i), *storageIndex[i])
-							if err != nil {
-								return err
-							}
+							//err = storageIndexBucket.Put([]byte(i), *storageIndex[i])
+							//if err != nil {
+							//	return err
+							//}
+							tuples=append(tuples, []byte(i), *storageIndex[i])
 						}
-					}
-
-					if len(storageChangeset) > 0 {
-						storageCSBucket, err := tx.CreateBucketIfNotExists(dbutils.StorageChangeSetBucket, false)
+						err = storageIndexBucket.MultiPut(tuples...)
 						if err != nil {
 							return err
 						}
 
-						for i := range storageChangeset {
-							err = storageCSBucket.Put(dbutils.EncodeTimestamp(i), storageChangeset[i])
-							if err != nil {
-								return err
-							}
-						}
+						//for i := range storageIndex {
+						//	err = storageIndexBucket.Put([]byte(i), *storageIndex[i])
+						//	if err != nil {
+						//		return err
+						//	}
+						//}
 					}
 
-					if len(accChangeset) > 0 {
-						accCSBucket, err := tx.CreateBucketIfNotExists(dbutils.AccountChangeSetBucket, false)
-						if err != nil {
-							return err
-						}
-
-						for i := range accChangeset {
-							err = accCSBucket.Put(dbutils.EncodeTimestamp(i), accChangeset[i])
-							if err != nil {
-								return err
-							}
-						}
- 					}
+					//if len(storageChangeset) > 0 {
+					//	storageCSBucket, err := tx.CreateBucketIfNotExists(dbutils.StorageChangeSetBucket, false)
+					//	if err != nil {
+					//		return err
+					//	}
+					//
+					//	for i := range storageChangeset {
+					//		err = storageCSBucket.Put(dbutils.EncodeTimestamp(i), storageChangeset[i])
+					//		if err != nil {
+					//			return err
+					//		}
+					//	}
+					//}
+					//
+					//if len(accChangeset) > 0 {
+					//	accCSBucket, err := tx.CreateBucketIfNotExists(dbutils.AccountChangeSetBucket, false)
+					//	if err != nil {
+					//		return err
+					//	}
+					//
+					//	for i := range accChangeset {
+					//		err = accCSBucket.Put(dbutils.EncodeTimestamp(i), accChangeset[i])
+					//		if err != nil {
+					//			return err
+					//		}
+					//	}
+ 					//}
 					fmt.Println("Commit", ts, time.Now().Sub(commTime), time.Now().Sub(startTime))
-					if err != nil {
-						log.Fatal("err on update", err, ts)
-					}
-					accIndex = make(map[string]*ethdb.HistoryIndexBytes, 0)
-					storageIndex = make(map[string]*ethdb.HistoryIndexBytes, 0)
-					accChangeset = make(map[uint64][]byte, 0)
-					storageChangeset = make(map[uint64][]byte, 0)
+					//if err != nil {
+					//	log.Fatal("err on update", err, ts)
+					//}
+					//accChangeset = make(map[uint64][]byte, 0)
+					//storageChangeset = make(map[uint64][]byte, 0)
 					break
 				} else {
 					numOfBatch++
 				}
-
+				fmt.Println("++")
 			}
 
 			if k == nil {
@@ -686,7 +699,7 @@ func storageFormatDiff2() {
 func storageFormatDiff3() {
 	var currentSize, expSizeDict uint64
 	var  expDictErrors uint64
-	db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
+	db, err := ethdb.NewBoltDatabase("/home/b00ris/	chaindata")
 	if err != nil {
 		log.Fatal(err)
 	}

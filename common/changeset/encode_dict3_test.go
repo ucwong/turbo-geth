@@ -145,7 +145,7 @@ func TestEncodingStorageDict3WithtRandomIncarnation1(t *testing.T) {
 }
 
 func TestEncodingStorageDict3WithtRandomIncarnation2(t *testing.T) {
-	db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
+	db, err := ethdb.NewBoltDatabase("/home/b00ris/chaindata")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestEncodingStorageDict3WithtRandomIncarnation2(t *testing.T) {
 		t.Fatal(err)
 	}
 	cs,err :=DecodeChangeSet(v)
-	t.Log(len(cs.Changes))
+	//t.Log(len(cs.Changes))
 	if err!=nil {
 		t.Fatal(err)
 	}
