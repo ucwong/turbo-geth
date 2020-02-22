@@ -24,7 +24,8 @@ func main() {
 	//testMigrate()
 	//migrateAccountIndexes()
 	//migrateStorageIndexes()
-	storageFormatDiff3()
+	calculateSizeOfAccounts()
+	//storageFormatDiff3()
 	//migragteCompressionOfBlocks()
 	//copyCodeContracts()
 	//checkCompressionOfBlocks()
@@ -763,59 +764,45 @@ func storageFormatDiff3() {
 	fmt.Println("Dict errors", expDictErrors)
 }
 func calculateSizeOfAccounts() {
-	var currentSize, expSizeDict uint64
-	var  expDictErrors uint64
-	db, err := ethdb.NewBoltDatabase("/home/b00ris/	chaindata")
+	var keysSize, valsSize uint64
+	db, err := ethdb.NewBoltDatabase("/home/b00ris/chaindata")
 	if err != nil {
 		log.Fatal(err)
 	}
-	mp:=make(map[uint64]uint64,0)
+	mp:=make(map[int]uint64,0)
 	defer spew.Dump(mp)
 	errs:=0
+	tsCurrent:=uint64(0)
+	lastK:=[]byte{}
+	defer func() {
+		fmt.Println("Keys size", keysSize)
+		fmt.Println("Vals size", valsSize)
+		fmt.Println("tsCurrent", tsCurrent)
+	}()
+
 	err = db.Walk(dbutils.ChangeSetBucket, []byte{}, 0, func(k, v []byte) (b bool, e error) {
+		lastK=k
 		ts, bucket := dbutils.DecodeTimestamp(k)
-		fmt.Println(ts, string(bucket), errs)
+		tsCurrent=ts
+		fmt.Println(ts, string(bucket), keysSize, valsSize)
 
 		switch {
 		case bytes.Equal(dbutils.AccountsHistoryBucket, bucket):
-			return true, nil
-		case bytes.Equal(dbutils.StorageHistoryBucket, bucket):
 			cs, err := dbutils.DecodeChangeSet(v)
 			if err != nil {
-				fmt.Println(ts, "dbutils.DecodeChangeSet", string(bucket), err)
 				errs++
-				return false, err
+				fmt.Println(err)
+				return true,nil
 			}
-
-			cs2 := &changeset.ChangeSet{
-				Changes: make([]changeset.Change, len(cs.Changes)),
+			for _,v:=range cs.Changes {
+				vLen:=len(v.Value)
+				keysSize+=uint64(len(v.Key))
+				valsSize+=uint64(vLen)
+				mp[vLen]++
 			}
-			for i := range cs.Changes {
-				mp[binary.LittleEndian.Uint64(cs.Changes[i].Key[common.HashLength:common.HashLength+common.IncarnationLength])]++
-				cs2.Changes[i] = changeset.Change{
-					Key:   cs.Changes[i].Key,
-					Value: cs.Changes[i].Value,
-				}
-			}
-			encDict, err := changeset.EncodeStorageDict3(cs2)
-			if err != nil {
-				fmt.Println(ts, "EncodeStorageDict3", string(bucket), err)
-				return false, err
-			}
-
-			csTestDict, err := changeset.DecodeStorageDict3(encDict)
-			if err != nil {
-				fmt.Println(v)
-				fmt.Println(ts, "DecodeStorageDict3", string(bucket), err)
-				return false, err
-			}
-			if reflect.DeepEqual(csTestDict, cs) {
-				fmt.Println("DICT not equal", ts)
-				expDictErrors++
-			}
-
-			currentSize += uint64(len(v))
-			expSizeDict += uint64(len(encDict))
+			return true, nil
+		case bytes.Equal(dbutils.StorageHistoryBucket, bucket):
+			return true, nil
 		default:
 			fmt.Println(string(k), "------------------------------")
 		}
@@ -824,10 +811,47 @@ func calculateSizeOfAccounts() {
 	if err != nil {
 		log.Println("err", err)
 	}
-	fmt.Println("Current size", currentSize)
-	fmt.Println("Dict size", expSizeDict)
-	fmt.Println("Dict errors", expDictErrors)
+
+	//fmt.Println("map", mp)
 }
+
+/*
+9254345 hST 30546926080 9554359464
+Keys size 30546926080
+Vals size 9554359464
+tsCurrent 9254345
+(map[int]uint64) (len=28) {
+ (int) 11: (uint64) 143202836,
+ (int) 71: (uint64) 3289721,
+ (int) 0: (uint64) 103789941,
+ (int) 14: (uint64) 105141652,
+ (int) 4: (uint64) 157571884,
+ (int) 10: (uint64) 17547384,
+ (int) 77: (uint64) 84,
+ (int) 74: (uint64) 30,
+ (int) 8: (uint64) 1723253,
+ (int) 76: (uint64) 12,
+ (int) 6: (uint64) 2751720,
+ (int) 5: (uint64) 924012,
+ (int) 17: (uint64) 26574607,
+ (int) 7: (uint64) 1732468,
+ (int) 15: (uint64) 48165651,
+ (int) 12: (uint64) 196781673,
+ (int) 1: (uint64) 9328759,
+ (int) 79: (uint64) 39318,
+ (int) 16: (uint64) 35859577,
+ (int) 18: (uint64) 10755,
+ (int) 82: (uint64) 2,
+ (int) 13: (uint64) 96441290,
+ (int) 9: (uint64) 3547113,
+ (int) 80: (uint64) 2078,
+ (int) 78: (uint64) 165581,
+ (int) 75: (uint64) 5,
+ (int) 73: (uint64) 26,
+ (int) 81: (uint64) 8
+}
+
+ */
 
 func collectChangesetCsv() {
 	var contractsLength, addressesLength uint64
