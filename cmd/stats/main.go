@@ -7,12 +7,13 @@ import (
 	"encoding/csv"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/golang/snappy"
 	"github.com/ledgerwatch/bolt"
 	"github.com/ledgerwatch/turbo-geth/common"
 	"github.com/ledgerwatch/turbo-geth/common/changeset"
 	"github.com/ledgerwatch/turbo-geth/common/dbutils"
 	"github.com/ledgerwatch/turbo-geth/ethdb"
-	"github.com/ugorji/go/codec"
+	"io"
 	"log"
 	"os"
 	"reflect"
@@ -24,11 +25,11 @@ func main() {
 	//testMigrate()
 	//migrateAccountIndexes()
 	//migrateStorageIndexes()
-	calculateSizeOfAccounts()
+	//calculateSizeOfAccounts()
 	//storageFormatDiff3()
 	//migragteCompressionOfBlocks()
 	//copyCodeContracts()
-	//checkCompressionOfBlocks()
+	checkCompressionOfBlocks()
 	//testMigrate()
 	//storageFormatDiff2()
 	//collectStorageNumOfDuplicate()
@@ -765,7 +766,7 @@ func storageFormatDiff3() {
 }
 func calculateSizeOfAccounts() {
 	var keysSize, valsSize uint64
-	db, err := ethdb.NewBoltDatabase("/home/b00ris/chaindata")
+	db, err := ethdb.NewBoltDatabase("/media/b00ris/nvme/chaindata")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -1146,35 +1147,29 @@ func collectStorageNumOfDuplicate() {
 }
 
 func checkCompressionOfBlocks()  {
-		var rlpSize, gzipRlpSize, gzipRlp2Size uint64
-		db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
+		var rlpSize, gzipRlpSize, gzipRlp2Size, snappySize uint64
+		var encGzipTime, encGzip2Time, encSnappyTime time.Duration
+		var decGzipTime, decGzip2Time, decSnappyTime time.Duration
+		db, err := ethdb.NewBoltDatabase("/media/b00ris/nvme/chaindata")
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		fst, err := os.Create("/home/b00ris/go/src/github.com/ledgerwatch/blocks_encode_size.csv")
-		defer fst.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		csvStorage := csv.NewWriter(fst)
-		err = csvStorage.Write([]string{
-			"block",
-			"rlp",
-			"gzip_rlp",
-			"gzip_rlp2",
-		})
+		//fst, err := os.Create("/home/b00ris/go/src/github.com/ledgerwatch/blocks_encode_size.csv")
+		//defer fst.Close()
+		//if err != nil {
+		//	log.Fatal(err)
+		//}
 
 
-		var handle codec.CborHandle
-		handle.WriterBufferSize = 64 * 1024
+
 		err = db.Walk(dbutils.BlockBodyPrefix, []byte{}, 0, func(k, v []byte) (b bool, e error) {
 			block:=binary.BigEndian.Uint64(k[0:8])
 			fmt.Println(block)
 
 			rlpLen:=len(v)
 
+			first:=time.Now()
 			var rlpBuf bytes.Buffer
 			zrlp := gzip.NewWriter(&rlpBuf)
 			_, err = zrlp.Write(v)
@@ -1183,6 +1178,8 @@ func checkCompressionOfBlocks()  {
 			}
 			zrlp.Close()
 			gzRlpLen:=len(rlpBuf.Bytes())
+
+			second:=time.Now()
 
 			var rlpBuf2 bytes.Buffer
 			zrlp2,_ := gzip.NewWriterLevel(&rlpBuf2,1)
@@ -1193,34 +1190,106 @@ func checkCompressionOfBlocks()  {
 			zrlp2.Close()
 			gzRlpLen2:=len(rlpBuf2.Bytes())
 
+			third:=time.Now()
+			snappyEnc:=snappy.Encode(nil, v)
+			snappyLen:=len(snappyEnc)
+			forth:=time.Now()
+			_,err:=snappy.Decode(nil, snappyEnc)
+			if err!=nil {
+				log.Fatal(err)
+			}
+			fifth:=time.Now()
+
+
+			var rlpBufDec bytes.Buffer
+			gzReader, err := gzip.NewReader(bytes.NewReader(rlpBuf.Bytes()))
+			if err != nil {
+				log.Fatal("Failed to create gzip reader", "err", err)
+			}
+			_, err = io.Copy(&rlpBufDec, gzReader)
+			if err != nil {
+				log.Fatal("Failed to read gzip data", "err", err)
+			}
+			err = gzReader.Close()
+			if err != nil {
+				log.Fatal("Failed to close gzip reader", "err", err)
+			}
+			_ = rlpBuf.Bytes()
+			sixth:=time.Now()
+
+			var rlpBuf2Dec bytes.Buffer
+			gzReader, err = gzip.NewReader(bytes.NewReader(rlpBuf2.Bytes()))
+			if err != nil {
+				log.Fatal("Failed to create gzip reader", "err", err)
+			}
+			_, err = io.Copy(&rlpBuf2Dec, gzReader)
+			if err != nil {
+				log.Fatal("Failed to read gzip data", "err", err)
+			}
+			err = gzReader.Close()
+			if err != nil {
+				log.Fatal("Failed to close gzip reader", "err", err)
+			}
+			_ = rlpBuf.Bytes()
+			seventh:=time.Now()
+
 
 
 
 			rlpSize+=uint64(rlpLen)
 			gzipRlpSize+=uint64(gzRlpLen)
 			gzipRlp2Size+=uint64(gzRlpLen2)
-			fmt.Println("stats", rlpSize, gzipRlpSize, gzipRlp2Size)
+			snappySize+=uint64(snappyLen)
+			gzTime:=second.Sub(first)
+			encGzipTime+=gzTime
+			gz2Time:=third.Sub(second)
+			encGzip2Time+=gz2Time
+			snTime:=forth.Sub(third)
+			encSnappyTime+=snTime
+
+			decSnTime:=fifth.Sub(forth)
+			decSnappyTime+=decSnTime
+
+			decGzTime:=sixth.Sub(fifth)
+			decGzipTime+=decGzTime
+
+			decGz2Time:=seventh.Sub(sixth)
+			decGzip2Time+=decGz2Time
+
+			fmt.Println("size", rlpSize, gzipRlpSize, gzipRlp2Size, snappySize)
+			fmt.Println("encode time", "gzTime", "gz2Time", "snTime")
+			fmt.Println("encode time", gzTime, gz2Time, snTime)
+			fmt.Println("encode time", encGzipTime, encGzip2Time, encSnappyTime)
+
+			fmt.Println("Decode time", "gzTime", "gz2Time", "snTime")
+			fmt.Println("Decode time", decGzTime, decGz2Time, decSnTime)
+			fmt.Println("Decode time", decGzip2Time, decGzip2Time, decSnappyTime)
 
 
-			err = csvStorage.Write([]string{
-				strconv.FormatUint(binary.BigEndian.Uint64(k[0:8]), 10),
-				strconv.Itoa(rlpLen),
-				strconv.Itoa(gzRlpLen),
-				strconv.Itoa(gzRlpLen2),
-
-			})
-			if err!=nil {
-				return false, err
-			}
 			return true, nil
 		})
 		if err != nil {
 			log.Println("err", err)
 		}
-		fmt.Println("rlp size      ", rlpSize)
-		fmt.Println("gzip rlp size ", gzipRlpSize)
-		fmt.Println("gzip rlp2 size", gzipRlp2Size)
+		fmt.Println("rlp size ", rlpSize)
+		fmt.Println("gzip rlp ", gzipRlpSize, encGzipTime, decGzipTime)
+		fmt.Println("gzip rlp2", gzipRlp2Size, encGzip2Time, decGzip2Time)
+		fmt.Println("snappy   ", snappySize, encSnappyTime, decSnappyTime)
 }
+/**
+results
+encode time gzTime gz2Time snTime
+encode time 812.072µs 399.246µs 34.583µs
+encode time 1h42m17.118303277s 1h6m9.644336184s 3m43.6475258s
+Decode time gzTime gz2Time snTime
+Decode time 166.775µs 178.292µs 17.276µs
+Decode time 20m55.016968536s 20m55.016968536s 1m27.402555805s
+rlp size  126317329945
+gzip rlp  84384714811 1h42m17.118303277s 20m44.359387169s
+gzip rlp2 88306259484 1h6m9.644336184s 20m55.016968536s
+snappy    90566891734 3m43.6475258s 1m27.402555805s
+
+ */
 
 func migragteCompressionOfBlocks()  {
 		db, err := ethdb.NewBoltDatabase("/media/b00ris/ssd/ethchain/thin_1/geth/chaindata")
