@@ -20,7 +20,6 @@ package state
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"runtime"
@@ -1276,38 +1275,23 @@ func (tds *TrieDbState) ReadAccountCodeSize(address common.Address, codeHash com
 
 // nextIncarnation determines what should be the next incarnation of an account (i.e. how many time it has existed before at this address)
 func (tds *TrieDbState) nextIncarnation(addrHash common.Hash) (uint64, error) {
-	var found bool
-	var incarnationBytes [common.IncarnationLength]byte
+	var (
+		found       bool
+		incarnation uint64
+		err         error
+	)
 	if tds.historical {
-		// We reserve ethdb.MaxTimestampLength (8) at the end of the key to accomodate any possible timestamp
-		// (timestamp's encoding may have variable length)
-		startkey := make([]byte, common.HashLength+common.IncarnationLength+common.HashLength+ethdb.MaxTimestampLength)
-		var fixedbits uint = 8 * common.HashLength
-		copy(startkey, addrHash[:])
-		if err := tds.db.WalkAsOf(dbutils.StorageBucket, dbutils.StorageHistoryBucket, startkey, fixedbits, tds.blockNr, func(k, _ []byte) (bool, error) {
-			copy(incarnationBytes[:], k[common.HashLength:])
-			found = true
-			return false, nil
-		}); err != nil {
-			return 0, err
-		}
+		incarnation, found, err = ethdb.GetHistoricalAccountIncarnation(tds.db, addrHash, tds.blockNr)
+	} else if inc, ok := tds.incarnationMap[addrHash]; ok {
+		return inc + 1, nil
 	} else {
-		if inc, ok := tds.incarnationMap[addrHash]; ok {
-			return inc + 1, nil
-		}
-		startkey := make([]byte, common.HashLength+common.IncarnationLength+common.HashLength)
-		var fixedbits uint = 8 * common.HashLength
-		copy(startkey, addrHash[:])
-		if err := tds.db.Walk(dbutils.StorageBucket, startkey, fixedbits, func(k, v []byte) (bool, error) {
-			copy(incarnationBytes[:], k[common.HashLength:])
-			found = true
-			return false, nil
-		}); err != nil {
-			return 0, err
-		}
+		incarnation, found, err = ethdb.GetCurrentAccountIncarnation(tds.db, addrHash)
+	}
+	if err != nil {
+		return 0, err
 	}
 	if found {
-		return (^binary.BigEndian.Uint64(incarnationBytes[:])) + 1, nil
+		return incarnation + 1, nil
 	}
 	return FirstContractIncarnation, nil
 }
