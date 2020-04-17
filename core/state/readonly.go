@@ -24,7 +24,6 @@ import (
 
 	"github.com/ledgerwatch/turbo-geth/common"
 	"github.com/ledgerwatch/turbo-geth/common/dbutils"
-	"github.com/ledgerwatch/turbo-geth/common/debug"
 	"github.com/ledgerwatch/turbo-geth/core/types/accounts"
 	"github.com/ledgerwatch/turbo-geth/ethdb"
 	"github.com/ledgerwatch/turbo-geth/log"
@@ -60,11 +59,11 @@ func (dbs *DbState) SetBlockNr(blockNr uint64) {
 	dbs.blockNr = blockNr
 }
 
-func (dbs *DbState) ForEachStorage(addr common.Address, start []byte, cb func(key, seckey, value common.Hash) bool, maxResults int) {
+func (dbs *DbState) ForEachStorage(addr common.Address, start []byte, cb func(key, seckey, value common.Hash) bool, maxResults int) error {
 	addrHash, err := common.HashData(addr[:])
 	if err != nil {
 		log.Error("Error on hashing", "err", err)
-		return
+		return err
 	}
 
 	st := llrb.New()
@@ -74,6 +73,7 @@ func (dbs *DbState) ForEachStorage(addr common.Address, start []byte, cb func(ke
 	var acc accounts.Account
 	if err = acc.DecodeForStorage(accData); err != nil {
 		log.Error("Error decoding account", "error", err)
+		return err
 	}
 	binary.BigEndian.PutUint64(s[common.HashLength:], ^acc.Incarnation)
 	copy(s[common.HashLength+common.IncarnationLength:], start)
@@ -102,12 +102,7 @@ func (dbs *DbState) ForEachStorage(addr common.Address, start []byte, cb func(ke
 			// Skip deleted entries
 			return true, nil
 		}
-		var seckey []byte
-		if debug.IsThinHistory() {
-			seckey = ks[common.HashLength:]
-		} else {
-			seckey = ks[common.HashLength+common.IncarnationLength:]
-		}
+		seckey := ks[common.HashLength:]
 		//fmt.Printf("seckey: %x\n", seckey)
 		si := storageItem{}
 		copy(si.seckey[:], seckey)
@@ -124,8 +119,10 @@ func (dbs *DbState) ForEachStorage(addr common.Address, start []byte, cb func(ke
 	})
 	if err != nil {
 		log.Error("ForEachStorage walk error", "err", err)
+		return err
 	}
 	results := 0
+	var innerErr error
 	st.AscendGreaterOrEqual(min, func(i llrb.Item) bool {
 		item := i.(*storageItem)
 		if item.value != emptyHash {
@@ -136,6 +133,7 @@ func (dbs *DbState) ForEachStorage(addr common.Address, start []byte, cb func(ke
 					copy(item.key[:], key)
 				} else {
 					log.Error("Error getting preimage", "err", err)
+					innerErr = err
 				}
 			}
 			cb(item.key, item.seckey, item.value)
@@ -143,6 +141,7 @@ func (dbs *DbState) ForEachStorage(addr common.Address, start []byte, cb func(ke
 		}
 		return results < maxResults
 	})
+	return innerErr
 }
 
 func (dbs *DbState) ForEachAccount(start []byte, cb func(address *common.Address, addrHash common.Hash), maxResults int) {
