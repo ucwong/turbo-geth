@@ -35,6 +35,7 @@ import (
 	"github.com/ledgerwatch/turbo-geth/core/vm"
 	"github.com/ledgerwatch/turbo-geth/crypto"
 	"github.com/ledgerwatch/turbo-geth/eth/downloader"
+	"github.com/ledgerwatch/turbo-geth/eth/mgr"
 	"github.com/ledgerwatch/turbo-geth/ethdb"
 	"github.com/ledgerwatch/turbo-geth/log"
 	"github.com/ledgerwatch/turbo-geth/node"
@@ -617,6 +618,64 @@ func trieChart() {
 	check(err)
 	err = ioutil.WriteFile("chart5.png", buffer.Bytes(), 0644)
 	check(err)
+}
+
+func mgrSchedule(chaindata string, block uint64) {
+	db, err := ethdb.NewBoltDatabase(chaindata)
+	check(err)
+
+	//bc, err := core.NewBlockChain(db, nil, params.MainnetChainConfig, ethash.NewFaker(), vm.Config{}, nil)
+	//check(err)
+	//defer db.Close()
+	//tds, err := bc.GetTrieDbState()
+	//check(err)
+	//currentBlock := bc.CurrentBlock()
+	//currentBlockNr := currentBlock.NumberU64()
+
+	loader := trie.NewSubTrieLoader(0)
+	tr := trie.New(common.Hash{})
+	rs := trie.NewRetainList(0)
+	rs.AddHex([]byte{})
+	subTries, err := loader.LoadSubTries(db, 0, rs, [][]byte{nil}, []int{0}, false)
+	check(err)
+
+	err = tr.HookSubTries(subTries, [][]byte{nil}) // hook up to the root
+	check(err)
+
+	stateSize := tr.EstimateWitnessSize([]byte{})
+	schedule := mgr.NewStateSchedule(stateSize, block, block+mgr.BlocksPerCycle+100)
+
+	var buf bytes.Buffer
+	var witnessSizeAccumulator int
+	var witnessCount int
+	var witnessEstimatedSizeAccumulator int
+
+	for i := range schedule.Ticks {
+		for j := range schedule.Ticks[i].StateSizeSlices {
+			ss := schedule.Ticks[i].StateSizeSlices[j]
+			stateSlice := mgr.StateSizeSlice2StateSlice(db, tr, ss)
+			retain := trie.NewRetainRange(common.CopyBytes(stateSlice.From), common.CopyBytes(stateSlice.To))
+			//fmt.Printf("\nretain: %s\n", retain)
+			witness, err2 := tr.ExtractWitness(false, retain)
+			if err2 != nil {
+				panic(err2)
+			}
+
+			buf.Reset()
+			_, err = witness.WriteTo(&buf)
+			if err != nil {
+				panic(err)
+			}
+
+			witnessCount++
+			witnessSizeAccumulator += buf.Len()
+		}
+		witnessEstimatedSizeAccumulator += int(schedule.Ticks[i].ToSize - schedule.Ticks[i].FromSize)
+	}
+
+	fmt.Printf("witnessCount: %d\n", witnessCount)
+	fmt.Printf("witnessSizeAccumulator: %dMb\n", witnessSizeAccumulator/1024/1024)
+	fmt.Printf("witnessEstimatedSizeAccumulator: %dMb\n", witnessEstimatedSizeAccumulator/1024/1024)
 }
 
 func execToBlock(chaindata string, block uint64, fromScratch bool) {
@@ -2073,6 +2132,9 @@ func main() {
 	}
 	if *action == "slice" {
 		dbSlice(*chaindata, common.FromHex(*hash))
+	}
+	if *action == "mgrSchedule" {
+		mgrSchedule(*chaindata, uint64(*block))
 	}
 	if *action == "resetState" {
 		resetState(*chaindata)

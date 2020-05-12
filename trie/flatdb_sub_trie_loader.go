@@ -9,6 +9,7 @@ import (
 	"github.com/ledgerwatch/bolt"
 	"github.com/ledgerwatch/turbo-geth/common"
 	"github.com/ledgerwatch/turbo-geth/common/dbutils"
+	"github.com/ledgerwatch/turbo-geth/common/debug"
 	"github.com/ledgerwatch/turbo-geth/core/types/accounts"
 	"github.com/ledgerwatch/turbo-geth/ethdb"
 	"github.com/ledgerwatch/turbo-geth/metrics"
@@ -20,7 +21,7 @@ var (
 )
 
 type FlatDbSubTrieLoader struct {
-	rl       *RetainList
+	rl       RetainDecider
 	curr     bytes.Buffer // Current key for the structure generation algorithm, as well as the input tape for the hash builder
 	succ     bytes.Buffer
 	value    bytes.Buffer // Current value to be used as the value tape for the hash builder
@@ -33,10 +34,12 @@ type FlatDbSubTrieLoader struct {
 
 	subTries SubTries
 
-	wasIH        bool
-	wasIHStorage bool
-	hashData     GenStructStepHashData
-	trace        bool
+	wasIH          bool
+	wasIHStorage   bool
+	dataLenAcc     uint64
+	dataLenStorage uint64
+	hashData       GenStructStepHashData
+	trace          bool
 
 	currStorage   bytes.Buffer // Current key for the structure generation algorithm, as well as the input tape for the hash builder
 	succStorage   bytes.Buffer
@@ -55,6 +58,7 @@ type FlatDbSubTrieLoader struct {
 	k, v               []byte
 	ihK, ihV           []byte
 	minKeyAsNibbles    bytes.Buffer
+	getWitnessLen      func(prefix []byte) uint64
 
 	// Storage item buffer
 	storageItemPresent bool
@@ -80,9 +84,8 @@ func NewFlatDbSubTrieLoader() *FlatDbSubTrieLoader {
 }
 
 // Reset prepares the loader for reuse
-func (fstl *FlatDbSubTrieLoader) Reset(db ethdb.Database, rl *RetainList, dbPrefixes [][]byte, fixedbits []int, trace bool) error {
+func (fstl *FlatDbSubTrieLoader) Reset(db ethdb.Database, rl RetainDecider, dbPrefixes [][]byte, fixedbits []int, trace bool) error {
 	fstl.rangeIdx = 0
-	fstl.rl = NewRetainList(0)
 	fstl.curr.Reset()
 	fstl.succ.Reset()
 	fstl.value.Reset()
@@ -109,7 +112,7 @@ func (fstl *FlatDbSubTrieLoader) Reset(db ethdb.Database, rl *RetainList, dbPref
 		fmt.Printf("RebuildTrie\n")
 	}
 	if fstl.trace {
-		fmt.Printf("fstl.rl: %x\n", fstl.rl.hexes)
+		fmt.Printf("fstl.rl: %s\n", fstl.rl)
 		fmt.Printf("fixedbits: %d\n", fixedbits)
 		fmt.Printf("dbPrefixes(%d): %x\n", len(dbPrefixes), dbPrefixes)
 	}
@@ -157,6 +160,17 @@ func (fstl *FlatDbSubTrieLoader) Reset(db ethdb.Database, rl *RetainList, dbPref
 		fstl.ih = nil
 	}
 	fstl.c = tx.Bucket(dbutils.CurrentStateBucket).Cursor()
+
+	if debug.IsTrackWitnessSizeEnabled() {
+		dataLenCursor := tx.Bucket(dbutils.IntermediateTrieWitnessLenBucket).Cursor()
+		fstl.getWitnessLen = func(prefix []byte) uint64 {
+			k, v := dataLenCursor.SeekTo(prefix)
+			if !bytes.Equal(k, prefix) {
+				panic(fmt.Sprintf("IH and DataLen buckets must have same keys set: %x, %x", k, prefix))
+			}
+			return binary.BigEndian.Uint64(v)
+		}
+	}
 
 	fstl.k, fstl.v = fstl.c.Seek(dbPrefix)
 	if len(dbPrefix) <= common.HashLength && len(fstl.k) > common.HashLength {
@@ -466,6 +480,7 @@ func (fstl *FlatDbSubTrieLoader) finaliseRoot(cutoff int) error {
 		var data GenStructStepData
 		if fstl.wasIH {
 			fstl.hashData.Hash = common.BytesToHash(fstl.value.Bytes())
+			fstl.hashData.DataLen = fstl.dataLenAcc
 			data = &fstl.hashData
 		} else {
 			if ok, err := fstl.finaliseStorageRoot(2 * common.HashLength); err == nil {
@@ -495,8 +510,10 @@ func (fstl *FlatDbSubTrieLoader) finaliseRoot(cutoff int) error {
 		fstl.accData.FieldSet = 0
 	}
 	fstl.groups = fstl.groups[:0]
-	fstl.subTries.roots = append(fstl.subTries.roots, fstl.hb.root())
-	fstl.subTries.Hashes = append(fstl.subTries.Hashes, fstl.hb.rootHash())
+	if fstl.hb.hasRoot() {
+		fstl.subTries.roots = append(fstl.subTries.roots, fstl.hb.root())
+		fstl.subTries.Hashes = append(fstl.subTries.Hashes, fstl.hb.rootHash())
+	}
 	return nil
 }
 
@@ -520,6 +537,7 @@ func (fstl *FlatDbSubTrieLoader) finaliseStorageRoot(cutoff int) (bool, error) {
 		var data GenStructStepData
 		if fstl.wasIHStorage {
 			fstl.hashData.Hash = common.BytesToHash(fstl.valueStorage.Bytes())
+			fstl.hashData.DataLen = fstl.dataLenStorage
 			data = &fstl.hashData
 		} else {
 			fstl.leafData.Value = rlphacks.RlpSerializableBytes(fstl.valueStorage.Bytes())
@@ -553,13 +571,13 @@ func (fstl *FlatDbSubTrieLoader) LoadSubTries() (SubTries, error) {
 			}
 		}
 		if fstl.storageItemPresent {
-			if err := fstl.WalkerStorage(fstl.storageIsHash, fstl.rangeIdx, fstl.storageKeyPart1, fstl.storageKeyPart2, fstl.storageValue, fstl.storageHash); err != nil {
+			if err := fstl.WalkerStorage(fstl.storageIsHash, fstl.rangeIdx, fstl.storageKeyPart1, fstl.storageKeyPart2, fstl.storageValue, fstl.storageHash, fstl.dataLenAcc); err != nil {
 				return fstl.subTries, err
 			}
 			fstl.storageItemPresent = false
 		}
 		if fstl.accountItemPresent {
-			if err := fstl.WalkerAccount(fstl.accountIsHash, fstl.rangeIdx, fstl.accountKey, &fstl.accountValue, fstl.accountHash); err != nil {
+			if err := fstl.WalkerAccount(fstl.accountIsHash, fstl.rangeIdx, fstl.accountKey, &fstl.accountValue, fstl.accountHash, fstl.dataLenStorage); err != nil {
 				return fstl.subTries, err
 			}
 			fstl.accountItemPresent = false
@@ -572,7 +590,7 @@ func (fstl *FlatDbSubTrieLoader) LoadSubTries() (SubTries, error) {
 	}
 	if err := fstl.finaliseRoot(fstl.cutoffs[len(fstl.cutoffs)-1]); err != nil {
 		fmt.Println("Err in finalize root, writing down resolve params")
-		fmt.Printf("fstl.rs: %x\n", fstl.rl.hexes)
+		fmt.Printf("fstl.rd: %s\n", fstl.rl)
 		fmt.Printf("fixedbytes: %d\n", fstl.fixedbytes)
 		fmt.Printf("masks: %b\n", fstl.masks)
 		fmt.Printf("dbPrefixes: %x\n", fstl.dbPrefixes)
@@ -631,7 +649,7 @@ func keyToNibblesWithoutInc(k []byte, w io.ByteWriter) {
 	}
 }
 
-func (fstl *FlatDbSubTrieLoader) WalkerStorage(isIH bool, rangeIdx int, kPart1, kPart2, v, h []byte) error {
+func (fstl *FlatDbSubTrieLoader) WalkerStorage(isIH bool, rangeIdx int, kPart1, kPart2, v, h []byte, witnessLen uint64) error {
 	if fstl.trace {
 		fmt.Printf("WalkerStorage: isIH=%v rangeIdx=%d keyPart1=%x keyPart2=%x value=%x hash=%x\n", isIH, rangeIdx, kPart1, kPart2, v, h)
 	}
@@ -655,6 +673,7 @@ func (fstl *FlatDbSubTrieLoader) WalkerStorage(isIH bool, rangeIdx int, kPart1, 
 		}
 		if fstl.wasIHStorage {
 			fstl.hashData.Hash = common.BytesToHash(fstl.valueStorage.Bytes())
+			fstl.hashData.DataLen = fstl.dataLenStorage
 			data = &fstl.hashData
 		} else {
 			fstl.leafData.Value = rlphacks.RlpSerializableBytes(fstl.valueStorage.Bytes())
@@ -667,6 +686,7 @@ func (fstl *FlatDbSubTrieLoader) WalkerStorage(isIH bool, rangeIdx int, kPart1, 
 	}
 	// Remember the current key and value
 	fstl.wasIHStorage = isIH
+	fstl.dataLenStorage = witnessLen
 	fstl.valueStorage.Reset()
 	if isIH {
 		fstl.valueStorage.Write(h)
@@ -678,7 +698,7 @@ func (fstl *FlatDbSubTrieLoader) WalkerStorage(isIH bool, rangeIdx int, kPart1, 
 }
 
 // Walker - k, v - shouldn't be reused in the caller's code
-func (fstl *FlatDbSubTrieLoader) WalkerAccount(isIH bool, rangeIdx int, k []byte, v *accounts.Account, h []byte) error {
+func (fstl *FlatDbSubTrieLoader) WalkerAccount(isIH bool, rangeIdx int, k []byte, v *accounts.Account, h []byte, witnessLen uint64) error {
 	if fstl.trace {
 		fmt.Printf("WalkerAccount: isIH=%v rangeIdx=%d key=%x hash=%x\n", isIH, rangeIdx, k, h)
 	}
@@ -697,6 +717,7 @@ func (fstl *FlatDbSubTrieLoader) WalkerAccount(isIH bool, rangeIdx int, k []byte
 		var data GenStructStepData
 		if fstl.wasIH {
 			copy(fstl.hashData.Hash[:], fstl.value.Bytes())
+			fstl.hashData.DataLen = fstl.dataLenAcc
 			data = &fstl.hashData
 		} else {
 			if ok, err := fstl.finaliseStorageRoot(2 * common.HashLength); err == nil {
@@ -734,6 +755,7 @@ func (fstl *FlatDbSubTrieLoader) WalkerAccount(isIH bool, rangeIdx int, k []byte
 	if isIH {
 		fstl.value.Reset()
 		fstl.value.Write(h)
+		fstl.dataLenAcc = witnessLen
 		return nil
 	}
 
@@ -742,7 +764,7 @@ func (fstl *FlatDbSubTrieLoader) WalkerAccount(isIH bool, rangeIdx int, k []byte
 	if !fstl.a.IsEmptyCodeHash() {
 		// the first item ends up deepest on the stack, the second item - on the top
 		fstl.accData.FieldSet |= AccountFieldCodeOnly
-		if err := fstl.hb.hash(fstl.a.CodeHash[:]); err != nil {
+		if err := fstl.hb.hash(fstl.a.CodeHash[:], 0); err != nil {
 			return err
 		}
 	}
