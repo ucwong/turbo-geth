@@ -93,16 +93,7 @@ func (w *ChangeSetWriter) WriteAccountStorage(ctx context.Context, address commo
 		return nil
 	}
 
-	secKey, err := common.HashData(key[:])
-	if err != nil {
-		return err
-	}
-	addrHash, err := common.HashData(address[:])
-	if err != nil {
-		return err
-	}
-
-	compositeKey := dbutils.GenerateCompositeStorageKey(addrHash, incarnation, secKey)
+	compositeKey := dbutils.PlainGenerateCompositeStorageKey(address, incarnation, *key)
 
 	o := bytes.TrimLeft(original[:], "\x00")
 	originalValue := make([]byte, len(o))
