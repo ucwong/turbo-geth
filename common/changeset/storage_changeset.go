@@ -334,9 +334,9 @@ func (b StorageChangeSetBytes) Walk(f func(k, v []byte) error) error {
 		)
 
 		if i > 0 {
-			startKeys = int(binary.BigEndian.Uint32(b[4+i*(common.HashLength)+(i-1)*4 : 4+i*(common.HashLength)+(i)*4]))
+			startKeys = int(binary.BigEndian.Uint32(b[4+i*(common.AddressLength)+(i-1)*4 : 4+i*(common.AddressLength)+(i)*4]))
 		}
-		endKeys = int(binary.BigEndian.Uint32(b[4+(i+1)*(common.HashLength)+i*4:]))
+		endKeys = int(binary.BigEndian.Uint32(b[4+(i+1)*(common.AddressLength)+i*4:]))
 		addrBytes := b[4+i*(common.AddressLength)+i*4:]
 		incarnation := DefaultIncarnation
 		if inc, ok := notDefaultIncarnations[addressHashID]; ok {
@@ -344,7 +344,7 @@ func (b StorageChangeSetBytes) Walk(f func(k, v []byte) error) error {
 		}
 
 		for j := startKeys; j < endKeys; j++ {
-			k := dbutils.PlainGenerateCompositeStorageKey(common.BytesToAddress(addrBytes), incarnation, common.BytesToHash(b[keysStart+j*common.HashLength:]))
+			k := dbutils.PlainGenerateCompositeStorageKey(common.BytesToAddress(addrBytes[:common.AddressLength]), incarnation, common.BytesToHash(b[keysStart+j*common.HashLength:keysStart+j*common.HashLength+common.HashLength]))
 			val, innerErr := FindValue(b[valsInfoStart:], id)
 			if innerErr != nil {
 				return innerErr
