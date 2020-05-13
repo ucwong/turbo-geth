@@ -29,12 +29,8 @@ func NewChangeSetWriter() *ChangeSetWriter {
 
 func (w *ChangeSetWriter) GetAccountChanges() (*changeset.ChangeSet, error) {
 	cs := changeset.NewAccountChangeSet()
-	for key, val := range w.accountChanges {
-		addrHash, err := common.HashData(key[:])
-		if err != nil {
-			return nil, err
-		}
-		if err := cs.Add(addrHash[:], val); err != nil {
+	for address, val := range w.accountChanges {
+		if err := cs.Add(common.CopyBytes(address[:]), val); err != nil {
 			return nil, err
 		}
 	}
