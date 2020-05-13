@@ -45,10 +45,10 @@ func TestEncodingAccount(t *testing.T) {
 		for i, v := range ch.Changes {
 			fmt.Println("Line ", i)
 
-			if !bytes.Equal(v.Key, ch2.Changes[i].Key) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
+			if !bytes.Equal(v.Key2, ch2.Changes[i].Key2) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
 				fmt.Println("Diff ", i)
-				fmt.Println("k1", common.Bytes2Hex(v.Key), len(v.Key))
-				fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key))
+				fmt.Println("k1", common.Bytes2Hex(v.Key2), len(v.Key2))
+				fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key2))
 				fmt.Println("v1", common.Bytes2Hex(v.Value))
 				fmt.Println("v2", common.Bytes2Hex(ch2.Changes[i].Value))
 			}
@@ -59,10 +59,10 @@ func TestEncodingAccount(t *testing.T) {
 	csBytes := AccountChangeSetBytes(b)
 	i := 0
 	err = csBytes.Walk(func(k, v []byte) error {
-		if !bytes.Equal(k, ch2.Changes[i].Key) || !bytes.Equal(v, ch2.Changes[i].Value) {
+		if !bytes.Equal(k, ch2.Changes[i].Key2) || !bytes.Equal(v, ch2.Changes[i].Value) {
 			fmt.Println("Diff ", i)
 			fmt.Println("k1", common.Bytes2Hex(k), len(k))
-			fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key))
+			fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key2))
 			fmt.Println("v1", common.Bytes2Hex(v))
 			fmt.Println("v2", common.Bytes2Hex(ch2.Changes[i].Value))
 			t.Fatal("not equal line")
@@ -75,7 +75,7 @@ func TestEncodingAccount(t *testing.T) {
 	}
 
 	for _, v := range ch.Changes {
-		val, err := csBytes.FindLast(v.Key)
+		val, err := csBytes.FindLast(v.Key2)
 		if err != nil {
 			t.Fatal(err)
 		}

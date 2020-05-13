@@ -70,9 +70,9 @@ func EncodeStorage(s *ChangeSet) ([]byte, error) {
 
 	currentKey := -1
 	for i, change := range s.Changes {
-		addrHash := change.Key[0:common.HashLength]
-		incarnation := ^binary.BigEndian.Uint64(change.Key[common.HashLength:])
-		keyHash := change.Key[common.HashLength+common.IncarnationLength : 2*common.HashLength+common.IncarnationLength]
+		addrHash := change.Key2[0:common.HashLength]
+		incarnation := ^binary.BigEndian.Uint64(change.Key2[common.HashLength:])
+		keyHash := change.Key2[common.HashLength+common.IncarnationLength : 2*common.HashLength+common.IncarnationLength]
 		//found new contract address
 		if i == 0 || !bytes.Equal(currentContract.AddrHash, addrHash) || currentContract.Incarnation != incarnation {
 			currentKey++
@@ -244,7 +244,7 @@ func DecodeStorage(b []byte) (*ChangeSet, error) {
 				return nil, innerErr
 			}
 			cs.Changes[id] = Change{
-				Key:   k,
+				Key2:   k,
 				Value: val,
 			}
 

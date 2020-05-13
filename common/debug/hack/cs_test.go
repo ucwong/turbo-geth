@@ -34,17 +34,17 @@ func TestDecodeNewStorageDebug(t *testing.T) {
 	}
 
 	for _, v := range cs.Changes {
-		fmt.Println(common.Bytes2Hex(v.Key), " - ", common.Bytes2Hex(v.Value))
+		fmt.Println(common.Bytes2Hex(v.Key2), " - ", common.Bytes2Hex(v.Value))
 	}
 	j := 0
 	fmt.Println()
 	err = changeset.StorageChangeSetBytes(newData).Walk(func(kk, vv []byte) error {
 		fmt.Println(common.Bytes2Hex(kk), " - ", common.Bytes2Hex(vv))
-		if !bytes.Equal(kk, cs.Changes[j].Key) {
+		if !bytes.Equal(kk, cs.Changes[j].Key2) {
 			t.Errorf("incorrect order. element: %v", j)
 		}
 		if !bytes.Equal(vv, cs.Changes[j].Value) {
-			t.Errorf("incorrect value. key:%v", common.Bytes2Hex(cs.Changes[j].Key))
+			t.Errorf("incorrect value. key:%v", common.Bytes2Hex(cs.Changes[j].Key2))
 		}
 		j++
 		return nil

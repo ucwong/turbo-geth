@@ -47,9 +47,9 @@ func TestEncodingStorageNewWithRandomIncarnation(t *testing.T) {
 		}
 
 		for i := range ch.Changes {
-			if !bytes.Equal(ch.Changes[i].Key, ch2.Changes[i].Key) {
-				t.Log(common.Bytes2Hex(ch.Changes[i].Key))
-				t.Log(common.Bytes2Hex(ch2.Changes[i].Key))
+			if !bytes.Equal(ch.Changes[i].Key2, ch2.Changes[i].Key2) {
+				t.Log(common.Bytes2Hex(ch.Changes[i].Key2))
+				t.Log(common.Bytes2Hex(ch2.Changes[i].Key2))
 				t.Error("not equal", i)
 			}
 		}
@@ -63,10 +63,10 @@ func TestEncodingStorageNewWithRandomIncarnation(t *testing.T) {
 
 		if !reflect.DeepEqual(ch, ch2) {
 			for i, v := range ch.Changes {
-				if !bytes.Equal(v.Key, ch2.Changes[i].Key) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
+				if !bytes.Equal(v.Key2, ch2.Changes[i].Key2) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
 					fmt.Println("Diff ", i)
-					fmt.Println("k1", common.Bytes2Hex(v.Key), len(v.Key))
-					fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key))
+					fmt.Println("k1", common.Bytes2Hex(v.Key2), len(v.Key2))
+					fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key2))
 					fmt.Println("v1", common.Bytes2Hex(v.Value))
 					fmt.Println("v2", common.Bytes2Hex(ch2.Changes[i].Value))
 				}
@@ -138,9 +138,9 @@ func TestEncodingStorageNewWithDefaultIncarnation(t *testing.T) {
 		}
 
 		for i := range ch.Changes {
-			if !bytes.Equal(ch.Changes[i].Key, ch2.Changes[i].Key) {
-				t.Log(common.Bytes2Hex(ch.Changes[i].Key))
-				t.Log(common.Bytes2Hex(ch2.Changes[i].Key))
+			if !bytes.Equal(ch.Changes[i].Key2, ch2.Changes[i].Key2) {
+				t.Log(common.Bytes2Hex(ch.Changes[i].Key2))
+				t.Log(common.Bytes2Hex(ch2.Changes[i].Key2))
 				t.Error("not equal", i)
 			}
 		}
@@ -154,10 +154,10 @@ func TestEncodingStorageNewWithDefaultIncarnation(t *testing.T) {
 
 		if !reflect.DeepEqual(ch, ch2) {
 			for i, v := range ch.Changes {
-				if !bytes.Equal(v.Key, ch2.Changes[i].Key) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
+				if !bytes.Equal(v.Key2, ch2.Changes[i].Key2) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
 					fmt.Println("Diff ", i)
-					fmt.Println("k1", common.Bytes2Hex(v.Key), len(v.Key))
-					fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key))
+					fmt.Println("k1", common.Bytes2Hex(v.Key2), len(v.Key2))
+					fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key2))
 					fmt.Println("v1", common.Bytes2Hex(v.Value))
 					fmt.Println("v2", common.Bytes2Hex(ch2.Changes[i].Value))
 				}
@@ -226,9 +226,9 @@ func TestEncodingStorageNewWithDefaultIncarnationAndEmptyValue(t *testing.T) {
 		}
 
 		for i := range ch.Changes {
-			if !bytes.Equal(ch.Changes[i].Key, ch2.Changes[i].Key) {
-				t.Log(common.Bytes2Hex(ch.Changes[i].Key))
-				t.Log(common.Bytes2Hex(ch2.Changes[i].Key))
+			if !bytes.Equal(ch.Changes[i].Key2, ch2.Changes[i].Key2) {
+				t.Log(common.Bytes2Hex(ch.Changes[i].Key2))
+				t.Log(common.Bytes2Hex(ch2.Changes[i].Key2))
 				t.Error("not equal", i)
 			}
 		}
@@ -242,10 +242,10 @@ func TestEncodingStorageNewWithDefaultIncarnationAndEmptyValue(t *testing.T) {
 
 		if !reflect.DeepEqual(ch, ch2) {
 			for i, v := range ch.Changes {
-				if !bytes.Equal(v.Key, ch2.Changes[i].Key) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
+				if !bytes.Equal(v.Key2, ch2.Changes[i].Key2) || !bytes.Equal(v.Value, ch2.Changes[i].Value) {
 					fmt.Println("Diff ", i)
-					fmt.Println("k1", common.Bytes2Hex(v.Key), len(v.Key))
-					fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key))
+					fmt.Println("k1", common.Bytes2Hex(v.Key2), len(v.Key2))
+					fmt.Println("k2", common.Bytes2Hex(ch2.Changes[i].Key2))
 					fmt.Println("v1", common.Bytes2Hex(v.Value))
 					fmt.Println("v2", common.Bytes2Hex(ch2.Changes[i].Value))
 				}
@@ -308,10 +308,10 @@ func TestEncodingStorageNewWithoutNotDefaultIncarnationWalk(t *testing.T) {
 
 		i := 0
 		err = StorageChangeSetBytes(b).Walk(func(k, v []byte) error {
-			if !bytes.Equal(k, ch.Changes[i].Key) {
-				t.Log(common.Bytes2Hex(ch.Changes[i].Key))
+			if !bytes.Equal(k, ch.Changes[i].Key2) {
+				t.Log(common.Bytes2Hex(ch.Changes[i].Key2))
 				t.Log(common.Bytes2Hex(k))
-				t.Error(i, "key was incorrect", common.Bytes2Hex(k), common.Bytes2Hex(ch.Changes[i].Key))
+				t.Error(i, "key was incorrect", common.Bytes2Hex(k), common.Bytes2Hex(ch.Changes[i].Key2))
 			}
 			if !bytes.Equal(v, ch.Changes[i].Value) {
 				t.Log(common.Bytes2Hex(ch.Changes[i].Value))
@@ -380,7 +380,7 @@ func TestEncodingStorageNewWithoutNotDefaultIncarnationFind(t *testing.T) {
 		}
 
 		for i, v := range ch.Changes {
-			val, err := StorageChangeSetBytes(b).Find(v.Key)
+			val, err := StorageChangeSetBytes(b).Find(v.Key2)
 			if err != nil {
 				t.Error(err, i)
 			}
@@ -503,7 +503,7 @@ func BenchmarkFindStorage(t *testing.B) {
 	finder := StorageChangeSetBytes(b)
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
-		v, err = finder.Find(ch.Changes[10].Key)
+		v, err = finder.Find(ch.Changes[10].Key2)
 		if err != nil {
 			t.Fatal(err)
 		}

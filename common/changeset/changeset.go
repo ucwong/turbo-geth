@@ -16,13 +16,13 @@ func NewChangeSet() *ChangeSet {
 }
 
 type Change struct {
-	Key   []byte
+	Key2  []byte
 	Value []byte
 }
 
-func (c Change) KeyHash() common.Hash {
-	h, _ := common.HashData(c.Key[:])
-	return h
+func (c Change) KeyHash() []byte {
+	h, _ := common.HashData(c.Key2[:])
+	return h[:]
 }
 
 // ChangeSet is a map with keys of the same size.
@@ -44,7 +44,7 @@ func (s *ChangeSet) Swap(i, j int) {
 }
 
 func (s *ChangeSet) Less(i, j int) bool {
-	cmp := bytes.Compare(s.Changes[i].Key, s.Changes[j].Key)
+	cmp := bytes.Compare(s.Changes[i].Key2, s.Changes[j].Key2)
 	return cmp < 0
 }
 
@@ -54,7 +54,7 @@ func (s *ChangeSet) KeySize() int {
 		return s.keyLen
 	}
 	for _, c := range s.Changes {
-		return len(c.Key)
+		return len(c.Key2)
 	}
 	return 0
 }
@@ -76,7 +76,7 @@ func (s *ChangeSet) Add(key []byte, value []byte) error {
 	}
 
 	s.Changes = append(s.Changes, Change{
-		Key:   key,
+		Key2:  key,
 		Value: value,
 	})
 	return nil
@@ -85,7 +85,7 @@ func (s *ChangeSet) Add(key []byte, value []byte) error {
 func (s *ChangeSet) ChangedKeys() map[string]struct{} {
 	m := make(map[string]struct{}, len(s.Changes))
 	for i := range s.Changes {
-		m[string(s.Changes[i].Key)] = struct{}{}
+		m[string(s.Changes[i].Key2)] = struct{}{}
 	}
 	return m
 }

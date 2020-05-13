@@ -44,7 +44,7 @@ func EncodeAccounts(s *ChangeSet) ([]byte, error) {
 	}
 
 	for i := 0; i < n; i++ {
-		_, err = buf.Write(s.Changes[i].Key)
+		_, err = buf.Write(s.Changes[i].Key2)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +193,7 @@ func DecodeAccounts(b []byte) (*ChangeSet, error) {
 		idx1 := binary.BigEndian.Uint32(b[4+numOfAccounts*accountKeySize+4*i : 4+numOfAccounts*accountKeySize+4*(i+1)])
 		val := b[valOffset+idx0 : valOffset+idx1]
 
-		h.Changes[i].Key = common.CopyBytes(key)
+		h.Changes[i].Key2 = common.CopyBytes(key)
 		h.Changes[i].Value = common.CopyBytes(val)
 	}
 
