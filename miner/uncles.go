@@ -70,8 +70,5 @@ func (u *miningUncles) has(hash common.Hash) bool {
 	}
 
 	_, ok = u.remoteUncles[hash]
-	if ok {
-		return ok
-	}
 	return ok
 }

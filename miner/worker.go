@@ -246,9 +246,11 @@ func (w *worker) pendingBlock() *types.Block {
 
 func (w *worker) init() {
 	w.initOnce.Do(func() {
+		//todo[b00ris] strange sleep
 		time.Sleep(5 * time.Second)
 		w.txsCh = make(chan core.NewTxsEvent, txChanSize)
 		w.chainHeadCh = make(chan core.ChainHeadEvent, chainHeadChanSize)
+		//todo[b00ris] do we need it?
 		w.chainSideCh = make(chan core.ChainSideEvent, chainSideChanSize)
 
 		// Subscribe NewTxsEvent for tx pool
@@ -268,7 +270,7 @@ func (w *worker) init() {
 		commit, timestamp := w.getCommit()
 
 		go w.mainLoop()
-		go w.newWorkLoop(recommit)
+		go w.newWorkLoop(recommit, commit)
 		go w.chainEvents(timestamp, commit)
 		go w.taskLoop()
 	})
@@ -300,11 +302,13 @@ func (w *worker) close() {
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
-func (w *worker) newWorkLoop(recommit time.Duration) {
+func (w *worker) newWorkLoop(recommit time.Duration, commit func(ctx consensus.Cancel, noempty bool, s int32)) {
 	var (
 		minRecommit = recommit // minimal resubmit interval specified by user.
 	)
 
+	//todo[b00ris] strange timer
+	// we need it to commit(true, commitInterruptResubmit)
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 	<-timer.C // discard the initial tick
@@ -362,6 +366,29 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 				w.resubmitHook(minRecommit, recommit)
 			}
 
+			/*'
+			case head := <-w.chainHeadCh:
+				clearPending(head.Block.NumberU64())
+				timestamp = time.Now().Unix()
+				commit(false, commitInterruptNewHead)
+			case head := <-w.chainHeadCh:
+				clearPending(head.Block.NumberU64())
+				timestamp = time.Now().Unix()
+				commit(false, commitInterruptNewHead)
+*/
+			case <-timer.C:
+				// If mining is running resubmit a new work cycle periodically to pull in
+				// higher priced transactions. Disable this overhead for pending blocks.
+				if w.isRunning() && (w.chainConfig.Clique == nil || w.chainConfig.Clique.Period > 0) {
+					// Short circuit if no new transaction arrives.
+					if atomic.LoadInt32(&w.newTxs) == 0 {
+						timer.Reset(recommit)
+						continue
+					}
+					commit(consensus.NewCancel(), true, commitInterruptResubmit)
+				}
+
+
 		case <-w.exitCh:
 			return
 		}
@@ -372,6 +399,7 @@ func (w *worker) getCommit() (func(ctx consensus.Cancel, noempty bool, s int32),
 	var interrupt atomic.Value
 	timestamp := new(int64) // timestamp for each round of mining.
 
+	//todo[b00ris] noempty is always false, s is always commitInterruptNewHead
 	return func(ctx consensus.Cancel, noempty bool, s int32) {
 		if v := interrupt.Load(); v != nil {
 			stored := v.(*int32)
@@ -381,7 +409,6 @@ func (w *worker) getCommit() (func(ctx consensus.Cancel, noempty bool, s int32),
 		}
 
 		v := interrupt.Load().(*int32)
-
 		w.newWorkCh <- &newWorkReq{interrupt: v, noempty: noempty, timestamp: atomic.LoadInt64(timestamp), cancel: consensus.NewCancel()}
 		atomic.StoreInt32(&w.newTxs, 0)
 	}, timestamp
@@ -393,6 +420,7 @@ func (w *worker) mainLoop() {
 
 	for {
 		select {
+		//todo[b00ris] haven't found non cancel events. Why????
 		case req := <-w.newWorkCh:
 			log.Warn("mining: a new work")
 			w.commitNewWork(req.cancel, req.interrupt, req.noempty, req.timestamp)
@@ -493,7 +521,6 @@ func (w *worker) chainEvents(timestamp *int64, commit func(ctx consensus.Cancel,
 		case ev := <-w.chainSideCh:
 			go func(ctx consensus.Cancel, ev core.ChainSideEvent) {
 				defer ctx.CancelFunc()
-				w.clearCanonicalChainContext()
 
 				// Short circuit for duplicate side blocks
 				if exist := w.uncles.has(ev.Block.Hash()); exist {
@@ -513,8 +540,7 @@ func (w *worker) chainEvents(timestamp *int64, commit func(ctx consensus.Cancel,
 				if w.isRunning() && w.current != nil && w.current.uncles.Cardinality() < 2 {
 					start := time.Now()
 					if err := w.commitUncle(w.current, ev.Block.Header()); err != nil {
-						ctx.CancelFunc()
-						log.Debug("cannot commit uncle", "err", err)
+						log.Error("cannot commit uncle", "err", err)
 						return
 					}
 
@@ -532,9 +558,9 @@ func (w *worker) chainEvents(timestamp *int64, commit func(ctx consensus.Cancel,
 						return false
 					})
 
+					w.clearCanonicalChainContext()
 					if err := w.commit(ctx, uncles, nil, true, start); err != nil {
-						ctx.CancelFunc()
-						log.Debug("cannot commit a block", "err", err)
+						log.Error("cannot commit a block", "err", err)
 					}
 				}
 			}(w.getCanonicalChainContext(), ev)
@@ -564,6 +590,7 @@ func (w *worker) taskLoop() {
 				w.newTaskHook(task)
 			}
 
+			// todo[b00ris] do we need sealHash?
 			// Reject duplicate sealing work due to resubmitting.
 			sealHash := w.engine.SealHash(task.block.Header())
 			if sealHash == prev {
@@ -580,14 +607,14 @@ func (w *worker) taskLoop() {
 				log.Warn("Block sealing failed", "err", err)
 			}
 
-			w.insertToChain(<-resultCh, task.createdAt, sealHash, task, false)
+			w.insertToChain(<-resultCh, task.createdAt, task, false)
 		case <-w.exitCh:
 			return
 		}
 	}
 }
 
-func (w *worker) insertToChain(result consensus.ResultWithContext, createdAt time.Time, sealHash common.Hash, task *task, directInsert bool) {
+func (w *worker) insertToChain(result consensus.ResultWithContext, createdAt time.Time, task *task, directInsert bool) {
 	// Short circuit when receiving empty result.
 	if result.Block == nil {
 		return
@@ -601,6 +628,7 @@ func (w *worker) insertToChain(result consensus.ResultWithContext, createdAt tim
 	}
 
 	// Different block could share same sealhash, deep copy here to prevent write-write conflict.
+	//todo[b00ris] not used. Could be deleted
 	if directInsert {
 		var (
 			receipts = make([]*types.Receipt, len(task.receipts))
@@ -632,7 +660,7 @@ func (w *worker) insertToChain(result consensus.ResultWithContext, createdAt tim
 			return
 		}
 
-		log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealHash, "hash", block.Hash(),
+		log.Info("Successfully sealed new block", "number", block.Number(), "hash", block.Hash(),
 			"elapsed", common.PrettyDuration(time.Since(createdAt)), "difficulty", block.Difficulty())
 	} else {
 		_, err := w.chain.InsertChain(result.Cancel, types.Blocks{block})
@@ -672,7 +700,7 @@ func (w *worker) makeCurrent(ctx consensus.Cancel, parent *types.Block, header *
 	}
 
 	// when 08 is processed ancestors contain 07 (quick block)
-	for _, ancestor := range w.chain.GetBlocksFromHash(parent.Hash(), 7) {
+	for _, ancestor := range w.chain.GetBlocksFromHash(parent.Hash(), 70) {
 		for _, uncle := range ancestor.Uncles() {
 			env.family.Add(uncle.Hash())
 		}

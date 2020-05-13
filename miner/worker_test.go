@@ -394,7 +394,7 @@ func testPendingStateAndBlock(t *testing.T, testCase *testCase, chainConfig *par
 }
 
 func TestEmptyWorkEthash(t *testing.T) {
-	t.Skip("should be restored. Unstable. tag: Mining")
+	//t.Skip("should be restored. Unstable. tag: Mining")
 	testCase, err := getTestCase()
 	if err != nil {
 		t.Error(err)
@@ -449,6 +449,7 @@ func testEmptyWork(t *testing.T, testCase *testCase, chainConfig *params.ChainCo
 }
 
 func checkEmptyMining(t *testing.T, testCase *testCase, gotBalance uint64, gotBankBalance uint64, index int) {
+	t.Helper()
 	var balance uint64
 	if index > 0 {
 		balance = 1000

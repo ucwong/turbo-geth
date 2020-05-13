@@ -60,7 +60,6 @@ type Miner struct {
 	worker     *worker
 	coinbase   common.Address
 	coinbaseMu sync.RWMutex
-	eth        Backend
 	engine     consensus.Engine
 	exitCh     chan struct{}
 
@@ -70,7 +69,6 @@ type Miner struct {
 
 func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, isLocalBlock func(block *types.Block) bool) *Miner {
 	miner := &Miner{
-		eth:      eth,
 		mux:      mux,
 		engine:   engine,
 		exitCh:   make(chan struct{}),

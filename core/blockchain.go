@@ -1326,6 +1326,7 @@ func (bc *BlockChain) writeBlockWithState(ctx context.Context, block *types.Bloc
 	// Reorganise the chain if the parent is not the head block
 
 	if execute && block.ParentHash() != currentBlock.Hash() {
+		log.Warn("core/blockchain.go:1329 bc.reorg", "current",currentBlock.NumberU64(), "block", block.NumberU64())
 		if err := bc.reorg(currentBlock, block); err != nil {
 			return NonStatTy, err
 		}
@@ -1568,7 +1569,7 @@ func (bc *BlockChain) insertChain(ctx context.Context, chain types.Blocks, verif
 
 	canonicalHash := rawdb.ReadCanonicalHash(bc.db, parentNumber)
 	for canonicalHash != parentHash {
-		log.Warn("Chain segment's parent not on canonical hash, adding to pre-blocks", "block", parentNumber, "hash", parentHash)
+		log.Warn("Chain segment's parent not on canonical hash, adding to pre-blocks", "block", parentNumber, "hash", parentHash, "canonicalHash", canonicalHash)
 		preBlocks = append(preBlocks, parent)
 		parentNumber--
 		parentHash = parent.ParentHash()
@@ -1709,6 +1710,13 @@ func (bc *BlockChain) insertChain(ctx context.Context, chain types.Blocks, verif
 				return k, fmt.Errorf("incorrect rewinding: wrong root %x, expected %x", root, parentRoot)
 			}
 			currentBlock := bc.CurrentBlock()
+
+			s:="core/blockchain.go:1712 bc.reorg data \n"
+			for i:=0; i<len(chain); i++ {
+				s+=fmt.Sprintf("block %d hash %s diff - %d \n", chain[i].NumberU64(), chain[i].Hash().String(),chain[i].Difficulty().Uint64())
+			}
+			log.Warn("core/blockchain.go:1712 bc.reorg", "current",currentBlock.NumberU64(), "parent", parent.NumberU64())
+			fmt.Println(s)
 			if err = bc.reorg(currentBlock, parent); err != nil {
 				bc.db.Rollback()
 				bc.setTrieDbState(nil)

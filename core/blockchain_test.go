@@ -19,6 +19,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"github.com/ledgerwatch/turbo-geth/log"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -421,6 +422,43 @@ func testReorgShort(t *testing.T, full bool) {
 		diff[i] = -9
 	}
 	testReorg(t, easy, diff, 12615120, full)
+}
+func TestImpossibleReorg(t *testing.T) {
+	db:=ethdb.NewMemDatabase()
+	var (
+		gspec   = &Genesis{
+			Config: params.TestChainConfig,
+			Alloc:  GenesisAlloc{},
+		}
+	)
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+
+	gspec.MustCommit(db)
+	genesisDb:= db.MemCopy()
+
+
+	blockchain, err := NewBlockChain(db,nil,gspec.Config,   ethash.NewFaker(), vm.Config{}, nil)
+	if err != nil {
+		t.Fatalf("failed to create pristine chain: %v", err)
+	}
+	defer blockchain.Stop()
+
+
+	easyBlocks, _ := GenerateChain(context.Background(), params.TestChainConfig, blockchain.CurrentBlock(), ethash.NewFaker(), genesisDb, 2, func(i int, b *BlockGen) {
+
+	})
+	t.Log(easyBlocks)
+	i,err:=blockchain.InsertChain(context.Background(), easyBlocks)
+	if err!=nil {
+		t.Fatal(err)
+	}
+	t.Log(i, blockchain.CurrentBlock().NumberU64())
+	err=blockchain.reorg(easyBlocks[1],easyBlocks[0])
+	if err!=nil {
+		t.Fatal(err)
+	}
+	t.Log(i, blockchain.CurrentBlock().NumberU64())
+
 }
 
 func testReorg(t *testing.T, first, second []int64, td int64, full bool) {

@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-// +build none
 
 // This file contains a miner stress test based on the Ethash consensus engine.
 package main
@@ -27,6 +26,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -49,7 +49,7 @@ import (
 )
 
 func main() {
-	const n = 5
+	const n = 15
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 	fdlimit.Raise(512 * n)
 
@@ -66,8 +66,10 @@ func main() {
 
 	var (
 		nodes  []*node.Node
+		eths  []*eth.Ethereum
 		enodes []*enode.Node
 	)
+	eths=make([]*eth.Ethereum, n)
 	for i := 0; i < n; i++ {
 		// Start the node and wait until it's up
 		node, err := makeMiner(genesis)
@@ -96,20 +98,55 @@ func main() {
 	// Iterate over all the nodes and start signing with them
 	time.Sleep(3 * time.Second)
 
-	for _, node := range nodes {
-		var ethereum *eth.Ethereum
-		if err := node.Service(&ethereum); err != nil {
+	for i, node := range nodes {
+		if err := node.Service(&eths[i]); err != nil {
 			panic(err)
 		}
-		if err := ethereum.StartMining(1); err != nil {
+		if err := eths[i].StartMining(1); err != nil {
 			panic(err)
 		}
 	}
 	time.Sleep(3 * time.Second)
 
-	// Start injecting transactions from the faucets like crazy
 	nonces := make([]uint64, len(faucets))
+	stopTimer:=time.NewTimer(time.Minute*3)
+stop:
+	for{
+		select {
+			case <-stopTimer.C:
+				fmt.Println("---------------------------------------------------------------------------")
+				fmt.Println("---------------------------------------------------------------------------")
+				fmt.Println("---------------------------------------------------------------------------")
+				fmt.Println("---------------------------------------------------------------------------")
+				fmt.Println("---------------------------------------------------------------------------")
+				break stop
+			default:
+		}
+}
+
+	res:=""
+	for i:=range eths {
+		b:=eths[i].BlockChain().CurrentBlock()
+		res+=strconv.Itoa(i)+" block - " + strconv.Itoa(int(b.NumberU64()))+" hash - " + b.Hash().String()+ " parent " + b.ParentHash().String()+" \n"
+		eths[i].StopMining()
+	}
+	fmt.Println(res)
+
+	time.Sleep(time.Second*10)
+	os.Exit(0)
+	// Start injecting transactions from the faucets like crazy
+
 	for {
+		select {
+		case <-stopTimer.C:
+			fmt.Println("---------------------------------------------------------------------------")
+			fmt.Println("---------------------------------------------------------------------------")
+			fmt.Println("---------------------------------------------------------------------------")
+			fmt.Println("---------------------------------------------------------------------------")
+			fmt.Println("---------------------------------------------------------------------------")
+		default:
+
+		}
 		index := rand.Intn(len(faucets))
 
 		// Fetch the accessor for the relevant signer
@@ -138,7 +175,7 @@ func main() {
 // faucet accounts.
 func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
 	genesis := core.DefaultRopstenGenesisBlock()
-	genesis.Difficulty = params.MinimumDifficulty
+	genesis.Difficulty = new(big.Int).Mul(big.NewInt(5),params.MinimumDifficulty)//params.MinimumDifficulty
 	genesis.GasLimit = 25000000
 
 	genesis.Config.ChainID = big.NewInt(18)
@@ -190,6 +227,7 @@ func makeMiner(genesis *core.Genesis) (*node.Node, error) {
 			GasPrice: big.NewInt(1),
 			Recommit: time.Second,
 		},
+		NoPruning: true,
 		BlocksBeforePruning: 100,
 		BlocksToPrune:       10,
 		PruningTimeout:      time.Second,
