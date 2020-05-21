@@ -105,11 +105,8 @@ func (so *stateObject) empty() bool {
 // newObject creates a state object.
 func newObject(db *IntraBlockState, address common.Address, data, original *accounts.Account) *stateObject {
 	var so = stateObject{
-		db:                 db,
-		address:            address,
-		originStorage:      make(Storage),
-		blockOriginStorage: make(Storage),
-		dirtyStorage:       make(Storage),
+		db:      db,
+		address: address,
 	}
 	so.data.Copy(data)
 	if !so.data.Initialised {
@@ -156,9 +153,11 @@ func (so *stateObject) touch() {
 
 // GetState returns a value from account storage.
 func (so *stateObject) GetState(key common.Hash) common.Hash {
-	value, dirty := so.dirtyStorage[key]
-	if dirty {
-		return value
+	if so.dirtyStorage != nil {
+		value, dirty := so.dirtyStorage[key]
+		if dirty {
+			return value
+		}
 	}
 	// Otherwise return the entry's original value
 	return so.GetCommittedState(key)
@@ -167,7 +166,7 @@ func (so *stateObject) GetState(key common.Hash) common.Hash {
 // GetCommittedState retrieves a value from the committed account storage trie.
 func (so *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	// If we have the original value cached, return that
-	{
+	if so.originStorage != nil {
 		value, cached := so.originStorage[key]
 		if cached {
 			return value
@@ -185,6 +184,12 @@ func (so *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	var value common.Hash
 	if enc != nil {
 		value.SetBytes(enc)
+	}
+	if so.originStorage == nil {
+		so.originStorage = make(Storage)
+	}
+	if so.blockOriginStorage == nil {
+		so.blockOriginStorage = make(Storage)
 	}
 	so.originStorage[key] = value
 	so.blockOriginStorage[key] = value
@@ -226,11 +231,26 @@ func (so *stateObject) SetStorage(storage map[common.Hash]common.Hash) {
 }
 
 func (so *stateObject) setState(key, value common.Hash) {
+	if so.dirtyStorage == nil {
+		so.dirtyStorage = make(Storage)
+	}
 	so.dirtyStorage[key] = value
 }
 
 // updateTrie writes cached storage modifications into the object's storage trie.
 func (so *stateObject) updateTrie(ctx context.Context, stateWriter StateWriter) error {
+	if so.dirtyStorage == nil {
+		return nil
+	}
+
+	if so.originStorage == nil {
+		so.originStorage = make(Storage)
+	}
+
+	if so.blockOriginStorage == nil {
+		so.blockOriginStorage = make(Storage)
+	}
+
 	for key, value := range so.dirtyStorage {
 		original := so.blockOriginStorage[key]
 		so.originStorage[key] = value
@@ -289,9 +309,15 @@ func (so *stateObject) setIncarnation(incarnation uint64) {
 func (so *stateObject) deepCopy(db *IntraBlockState) *stateObject {
 	stateObject := newObject(db, so.address, &so.data, &so.original)
 	stateObject.code = so.code
-	stateObject.dirtyStorage = so.dirtyStorage.Copy()
-	stateObject.originStorage = so.originStorage.Copy()
-	stateObject.blockOriginStorage = so.blockOriginStorage.Copy()
+	if so.dirtyStorage != nil {
+		stateObject.dirtyStorage = so.dirtyStorage.Copy()
+	}
+	if so.originStorage != nil {
+		stateObject.originStorage = so.originStorage.Copy()
+	}
+	if so.blockOriginStorage != nil {
+		stateObject.blockOriginStorage = so.blockOriginStorage.Copy()
+	}
 	stateObject.suicided = so.suicided
 	stateObject.dirtyCode = so.dirtyCode
 	stateObject.deleted = so.deleted
