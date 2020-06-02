@@ -153,7 +153,7 @@ func spawnExecuteBlocksStage(stateDB ethdb.Database, blockchain BlockChain, quit
 		stateWriter.SetCodeSizeCache(codeSizeCache)
 
 		// where the magic happens
-		err = core.ExecuteBlockEuphemerally(chainConfig, vmConfig, blockchain, engine, block, stateReader, stateWriter)
+		err = core.ExecuteBlockEphemerally(chainConfig, vmConfig, blockchain, engine, block, stateReader, stateWriter)
 		if err != nil {
 			return 0, err
 		}

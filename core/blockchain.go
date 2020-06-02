@@ -871,7 +871,6 @@ func (bc *BlockChain) GetUnclesInChain(block *types.Block, length int) []*types.
 	return uncles
 }
 
-
 // Stop stops the blockchain service. If any imports are currently in progress
 // it will abort them using the procInterrupt.
 func (bc *BlockChain) Stop() {
@@ -2460,9 +2459,9 @@ func (bc *BlockChain) waitJobs() {
 	bc.quitMu.Unlock()
 }
 
-// ExecuteBlockEuphemerally runs a block from provided stateReader and
+// ExecuteBlockEphemerally runs a block from provided stateReader and
 // writes the result to the provided stateWriter
-func ExecuteBlockEuphemerally(
+func ExecuteBlockEphemerally(
 	chainConfig *params.ChainConfig,
 	vmConfig *vm.Config,
 	chainContext ChainContext,

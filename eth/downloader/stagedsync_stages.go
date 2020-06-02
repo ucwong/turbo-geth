@@ -31,7 +31,7 @@ const (
 	Headers             SyncStage = iota // Headers are downloaded, their Proof-Of-Work validity and chaining is verified
 	Bodies                               // Block bodies are downloaded, TxHash and UncleHash are getting verified
 	Senders                              // "From" recovered from signatures, bodies re-written
-	Execution                            // Executing each block w/o buildinf a trie
+	Execution                            // Executing each block w/o building a trie
 	HashCheck                            // Checking the root hash
 	AccountHistoryIndex                  // Generating history index for accounts
 	StorageHistoryIndex                  // Generating history index for storage

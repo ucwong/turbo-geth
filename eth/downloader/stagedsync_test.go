@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+	"sync"
+	"testing"
+
 	"github.com/ledgerwatch/turbo-geth/common"
 	"github.com/ledgerwatch/turbo-geth/consensus"
 	"github.com/ledgerwatch/turbo-geth/consensus/ethash"
@@ -16,9 +20,6 @@ import (
 	"github.com/ledgerwatch/turbo-geth/event"
 	"github.com/ledgerwatch/turbo-geth/params"
 	"github.com/ledgerwatch/turbo-geth/trie"
-	"math/big"
-	"sync"
-	"testing"
 )
 
 type stagedSyncTester struct {
@@ -89,8 +90,8 @@ func (st *stagedSyncTester) CurrentHeader() *types.Header {
 	return st.currentHeader
 }
 
-// ExecuteBlockEuphemerally is part of the implementation of BlockChain interface defined in downloader.go
-func (st *stagedSyncTester) ExecuteBlockEuphemerally(_ *types.Block, _ state.StateReader, _ *state.DbStateWriter) error {
+// ExecuteBlockEphemerally is part of the implementation of BlockChain interface defined in downloader.go
+func (st *stagedSyncTester) ExecuteBlockEphemerally(_ *types.Block, _ state.StateReader, _ *state.DbStateWriter) error {
 	panic("")
 }
 
